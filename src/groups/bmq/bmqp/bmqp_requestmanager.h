@@ -602,7 +602,8 @@ class RequestManager {
     /// specified `blob`.  Return 0 on success, and a non-zero value
     /// otherwise, populating the optionally specified `status` with
     /// information pertaining to the error.
-    typedef bsl::function<bmqt::GenericResult::Enum(const bdlbb::Blob& blob)>
+    typedef bsl::function<bmqt::GenericResult::Enum(
+        const bsl::shared_ptr<bdlbb::Blob>& blob)>
         SendFn;
 
     typedef RequestManagerRequest<REQUEST, RESPONSE> RequestType;
@@ -700,9 +701,10 @@ class RequestManager {
     /// Send the specified `blob` over the specified `channel` using the
     /// specified `watermark`.  Return a Generic Result code representing
     /// the status of delivery of this request.
-    static bmqt::GenericResult::Enum sendHelper(mwcio::Channel*    channel,
-                                                const bdlbb::Blob& blob,
-                                                bsls::Types::Int64 watermark);
+    static bmqt::GenericResult::Enum
+    sendHelper(mwcio::Channel*                     channel,
+               const bsl::shared_ptr<bdlbb::Blob>& blob,
+               bsls::Types::Int64                  watermark);
 
     /// Callback invoked by the scheduler when the request identified by the
     /// specified `requestId` has timedout.
@@ -1043,13 +1045,13 @@ const bdld::Datum& RequestManagerRequest<REQUEST, RESPONSE>::userData() const
 // --------------------
 
 template <class REQUEST, class RESPONSE>
-inline bmqt::GenericResult::Enum
-RequestManager<REQUEST, RESPONSE>::sendHelper(mwcio::Channel*    channel,
-                                              const bdlbb::Blob& blob,
-                                              bsls::Types::Int64 watermark)
+inline bmqt::GenericResult::Enum RequestManager<REQUEST, RESPONSE>::sendHelper(
+    mwcio::Channel*                     channel,
+    const bsl::shared_ptr<bdlbb::Blob>& blob,
+    bsls::Types::Int64                  watermark)
 {
     mwcio::Status status;
-    channel->write(&status, blob, watermark);
+    channel->write(&status, *blob, watermark);
 
     switch (status.category()) {
     case mwcio::StatusCategory::e_SUCCESS:
@@ -1363,7 +1365,7 @@ bmqt::GenericResult::Enum RequestManager<REQUEST, RESPONSE>::sendRequest(
 
     // Send the request
     request->d_sendTime              = mwcsys::Time::highResolutionTimer();
-    bmqt::GenericResult::Enum sendRc = sendFn(d_schemaEventBuilder.blob());
+    bmqt::GenericResult::Enum sendRc = sendFn(d_schemaEventBuilder.blob_sp());
     if (sendRc != bmqt::GenericResult::e_SUCCESS) {
         mwcu::MemOutStream errorDesc;
         errorDesc << "WRITE_FAILED, status: " << sendRc;

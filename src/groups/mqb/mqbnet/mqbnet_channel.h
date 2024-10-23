@@ -128,8 +128,7 @@ class Channel {
     /// This is template parameter to generalized writing code.
     struct PutArgs {
         const bmqp::PutHeader&              d_putHeader;
-        const bsl::shared_ptr<bdlbb::Blob>& d_data;
-        const bool                          d_hasWeakPtr;
+        const bsl::shared_ptr<bdlbb::Blob>& d_data_sp;
 
         PutArgs(Item& item);
 
@@ -158,7 +157,7 @@ class Channel {
     /// data.
     /// This is template parameter to generalized writing code.
     struct ExplicitPushArgs : PushArgsBase {
-        const bsl::shared_ptr<bdlbb::Blob>& d_data;
+        const bsl::shared_ptr<bdlbb::Blob>& d_data_sp;
 
         const bmqp::Protocol::SubQueueInfosArray& d_subQueueInfos;
 
@@ -221,7 +220,7 @@ class Channel {
     /// `control` builder.
     struct ControlArgs {
         bmqp::EventType::Enum d_type;
-        const bdlbb::Blob&    d_data;
+        const bsl::shared_ptr<bdlbb::Blob>& d_data_sp;
         int                   d_messageCount;
 
         ControlArgs(Item& item);
@@ -244,8 +243,6 @@ class Channel {
 
         // union of event data copies
         const bmqp::PutHeader                      d_putHeader;
-        const bsl::weak_ptr<bdlbb::Blob>           d_data_wp;
-        const bool                                 d_hasWeakPtr;
         const bsl::shared_ptr<bdlbb::Blob>         d_data_sp;
         const int                                  d_queueId;
         const int                                  d_subQueueId;
@@ -253,15 +250,11 @@ class Channel {
         const int                                  d_flags;
         const bmqt::CompressionAlgorithmType::Enum d_compressionAlgorithmType;
         const bmqp::MessagePropertiesInfo          d_messagePropertiesInfo;
-        const bdlbb::Blob                          d_data;
         const bmqp::Protocol::SubQueueInfosArray   d_subQueueInfos;
         const int                                  d_correlationId;
         const int                                  d_status;
 
         const bsl::shared_ptr<mwcu::AtomicState> d_state;
-
-        bsl::shared_ptr<bdlbb::Blob> d_tempData_sp;
-        bsl::shared_ptr<bdlbb::Blob> d_tempOptions_sp;
 
         size_t d_numBytes;
 
@@ -269,7 +262,6 @@ class Channel {
 
         Item(const bmqp::PutHeader&                    ph,
              const bsl::shared_ptr<bdlbb::Blob>&       data,
-             bool                                      keepWeakPtr,
              const bsl::shared_ptr<mwcu::AtomicState>& state,
              bslma::Allocator*                         allocator);
 
@@ -306,7 +298,7 @@ class Channel {
              bmqp::EventType::Enum                     type,
              bslma::Allocator*                         allocator);
 
-        Item(const bdlbb::Blob&                        data,
+        Item(const bsl::shared_ptr<bdlbb::Blob>&       data,
              bmqp::EventType::Enum                     type,
              const bsl::shared_ptr<mwcu::AtomicState>& state,
              bslma::Allocator*                         allocator);
@@ -532,14 +524,11 @@ class Channel {
     void closeChannel();
 
     /// Write PUT message using the specified `ph`, `data`, and `state`.
-    /// Return e_SUCCESS even if the channel is in HWM. If the specified
-    /// `keepWeakPtr` is `true`, keep `weak_ptr` when enqueueing thus
-    /// allowing caller to release the blobs before processing.
+    /// Return e_SUCCESS even if the channel is in HWM.
     bmqt::GenericResult::Enum
     writePut(const bmqp::PutHeader&                    ph,
              const bsl::shared_ptr<bdlbb::Blob>&       data,
-             const bsl::shared_ptr<mwcu::AtomicState>& state,
-             bool                                      keepWeakPtr = false);
+             const bsl::shared_ptr<mwcu::AtomicState>& state);
 
     /// Write `explicit` PUSH message using the specified `payload`,
     /// `queueId`, `msgId`, `flags`, `compressionType`, `subQueueInfos`, and
@@ -604,7 +593,7 @@ class Channel {
     /// Replication Receipt).  Return e_SUCCESS even if the channel is in
     /// High WaterMark.
     bmqt::GenericResult::Enum
-    writeBlob(const bdlbb::Blob&                        data,
+    writeBlob(const bsl::shared_ptr<bdlbb::Blob>&       data,
               bmqp::EventType::Enum                     type,
               const bsl::shared_ptr<mwcu::AtomicState>& state = 0);
 
@@ -643,8 +632,7 @@ inline Channel::PutArgs::~PutArgs()
 
 inline Channel::PutArgs::PutArgs(Item& item)
 : d_putHeader(item.d_putHeader)
-, d_data(item.data())
-, d_hasWeakPtr(item.d_hasWeakPtr)
+, d_data_sp(item.d_data_sp)
 {
     // NOTHING
 }
@@ -683,7 +671,7 @@ inline Channel::ExplicitPushArgs::ExplicitPushArgs(Item& item)
                item.d_flags,
                item.d_compressionAlgorithmType,
                item.d_messagePropertiesInfo)
-, d_data(item.d_data_sp)
+, d_data_sp(item.d_data_sp)
 , d_subQueueInfos(item.d_subQueueInfos)
 {
     // NOTHING
@@ -771,7 +759,7 @@ inline Channel::RejectArgs::~RejectArgs()
 
 inline Channel::ControlArgs::ControlArgs(Item& item)
 : d_type(item.d_type)
-, d_data(item.d_data)
+, d_data_sp(item.d_data_sp)
 , d_messageCount(1)
 {
     // NOTHING
@@ -784,7 +772,7 @@ inline Channel::ControlArgs::~ControlArgs()
 
 inline const bdlbb::Blob& Channel::ControlArgs::blob() const
 {
-    return d_data;
+    return *d_data_sp;
 }
 
 inline size_t Channel::ControlArgs::messageCount() const
@@ -804,35 +792,35 @@ inline void Channel::ControlArgs::reset()
 // CREATORS
 inline Channel::Item::Item(bslma::Allocator* allocator)
 : d_type(bmqp::EventType::e_UNDEFINED)
-, d_hasWeakPtr(false)
+, d_putHeader()
+, d_data_sp(0, allocator)
 , d_queueId(0)
 , d_subQueueId(0)
+, d_msgId()
 , d_flags(0)
 , d_compressionAlgorithmType(bmqt::CompressionAlgorithmType::e_NONE)
-, d_data(allocator)
 , d_subQueueInfos(allocator)
 , d_correlationId(0)
 , d_status(0)
+, d_state(0)
 , d_numBytes(0)
 {
     // NOTHING
 }
 
-inline Channel::Item::Item(const bmqp::PutHeader&              ph,
-                           const bsl::shared_ptr<bdlbb::Blob>& data,
-                           bool                                keepWeakPtr,
+inline Channel::Item::Item(const bmqp::PutHeader&                    ph,
+                           const bsl::shared_ptr<bdlbb::Blob>&       data,
                            const bsl::shared_ptr<mwcu::AtomicState>& state,
                            bslma::Allocator*                         allocator)
 : d_type(bmqp::EventType::e_PUT)
 , d_putHeader(ph)
-, d_data_wp(keepWeakPtr ? data : 0)
-, d_hasWeakPtr(false)
-, d_data_sp(keepWeakPtr ? 0 : data)
+, d_data_sp(data)
 , d_queueId(0)
 , d_subQueueId(0)
+, d_msgId()
 , d_flags(0)
 , d_compressionAlgorithmType(bmqt::CompressionAlgorithmType::e_NONE)
-, d_data(allocator)
+, d_messagePropertiesInfo()
 , d_subQueueInfos(allocator)
 , d_correlationId(0)
 , d_status(0)
@@ -853,7 +841,7 @@ inline Channel::Item::Item(
     const bsl::shared_ptr<mwcu::AtomicState>& state,
     bslma::Allocator*                         allocator)
 : d_type(bmqp::EventType::e_PUSH)
-, d_hasWeakPtr(false)
+, d_putHeader()
 , d_data_sp(payload)
 , d_queueId(queueId)
 , d_subQueueId(0)
@@ -861,7 +849,6 @@ inline Channel::Item::Item(
 , d_flags(flags)
 , d_compressionAlgorithmType(compressionAlgorithmType)
 , d_messagePropertiesInfo(messagePropertiesInfo)
-, d_data(allocator)
 , d_subQueueInfos(subQueueInfos, allocator)
 , d_correlationId(0)
 , d_status(0)
@@ -881,14 +868,14 @@ inline Channel::Item::Item(
     const bsl::shared_ptr<mwcu::AtomicState>& state,
     bslma::Allocator*                         allocator)
 : d_type(bmqp::EventType::e_PUSH)
-, d_hasWeakPtr(false)
+, d_putHeader()
+, d_data_sp(0, allocator)
 , d_queueId(queueId)
 , d_subQueueId(0)
 , d_msgId(msgId)
 , d_flags(flags)
 , d_compressionAlgorithmType(compressionAlgorithmType)
 , d_messagePropertiesInfo(messagePropertiesInfo)
-, d_data(allocator)
 , d_subQueueInfos(subQueueInfos, allocator)
 , d_correlationId(0)
 , d_status(0)
@@ -906,13 +893,14 @@ inline Channel::Item::Item(int                      status,
                            const bsl::shared_ptr<mwcu::AtomicState>& state,
                            bslma::Allocator*                         allocator)
 : d_type(bmqp::EventType::e_ACK)
-, d_hasWeakPtr(false)
+, d_putHeader()
+, d_data_sp(0, allocator)
 , d_queueId(queueId)
 , d_subQueueId(0)
 , d_msgId(guid)
 , d_flags(0)
 , d_compressionAlgorithmType(bmqt::CompressionAlgorithmType::e_NONE)
-, d_data(allocator)
+, d_messagePropertiesInfo()
 , d_subQueueInfos(allocator)
 , d_correlationId(correlationId)
 , d_status(status)
@@ -929,13 +917,14 @@ inline Channel::Item::Item(int                      queueId,
                            bmqp::EventType::Enum                     type,
                            bslma::Allocator*                         allocator)
 : d_type(type)
-, d_hasWeakPtr(false)
+, d_putHeader()
+, d_data_sp(0, allocator)
 , d_queueId(queueId)
 , d_subQueueId(subQueueId)
 , d_msgId(guid)
 , d_flags(0)
 , d_compressionAlgorithmType(bmqt::CompressionAlgorithmType::e_NONE)
-, d_data(allocator)
+, d_messagePropertiesInfo()
 , d_subQueueInfos(allocator)
 , d_correlationId(0)
 , d_status(0)
@@ -954,22 +943,24 @@ inline Channel::Item::Item(int                      queueId,
     }
 }
 
-inline Channel::Item::Item(const bdlbb::Blob&                        data,
+inline Channel::Item::Item(const bsl::shared_ptr<bdlbb::Blob>&       data,
                            bmqp::EventType::Enum                     type,
                            const bsl::shared_ptr<mwcu::AtomicState>& state,
                            bslma::Allocator*                         allocator)
 : d_type(type)
-, d_hasWeakPtr(false)
+, d_putHeader()
+, d_data_sp(data)
 , d_queueId(0)
 , d_subQueueId(0)
+, d_msgId()
 , d_flags(0)
 , d_compressionAlgorithmType(bmqt::CompressionAlgorithmType::e_NONE)
-, d_data(data, allocator)
+, d_messagePropertiesInfo()
 , d_subQueueInfos(allocator)
 , d_correlationId(0)
 , d_status(0)
 , d_state(state)
-, d_numBytes(data.length())
+, d_numBytes(data->length())
 {
     // NOTHING
 }
@@ -981,10 +972,6 @@ inline Channel::Item::~Item()
 
 inline const bsl::shared_ptr<bdlbb::Blob>& Channel::Item::data()
 {
-    if (d_hasWeakPtr) {
-        d_tempData_sp = d_data_wp.lock();
-        return d_tempData_sp;  // RETURN
-    }
     return d_data_sp;
 }
 
