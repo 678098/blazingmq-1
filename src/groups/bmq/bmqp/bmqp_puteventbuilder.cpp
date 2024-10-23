@@ -90,8 +90,8 @@ PutEventBuilder::packMessageInternal(const bdlbb::Blob& appData, int queueId)
 
     // Add the PutHeader
     bmqu::BlobPosition offset;
-    bmqu::BlobUtil::reserve(&offset, &d_blob, sizeof(PutHeader));
-    bmqu::BlobObjectProxy<PutHeader> putHeader(&d_blob,
+    bmqu::BlobUtil::reserve(&offset, d_blob_sp.get(), sizeof(PutHeader));
+    bmqu::BlobObjectProxy<PutHeader> putHeader(d_blob_sp.get(),
                                                offset,
                                                false,  // no read
                                                true);  // write mode
@@ -117,7 +117,7 @@ PutEventBuilder::packMessageInternal(const bdlbb::Blob& appData, int queueId)
             return res;  // RETURN
         }
         optionBox.add(
-            &d_blob,
+            d_blob_sp.get(),
             reinterpret_cast<const char*>(d_msgGroupId.value().data()),
             msgGroupId);
     }
@@ -144,12 +144,12 @@ PutEventBuilder::packMessageInternal(const bdlbb::Blob& appData, int queueId)
     putHeader.reset();  // i.e., flush writing to blob..
 
     // Just a sanity test.  Should still be word aligned.
-    BSLS_ASSERT_SAFE(isWordAligned(d_blob));
+    BSLS_ASSERT_SAFE(isWordAligned(*d_blob_sp));
 
-    bdlbb::BlobUtil::append(&d_blob, appData);
+    bdlbb::BlobUtil::append(d_blob_sp.get(), appData);
 
     // Add padding
-    ProtocolUtil::appendPaddingRaw(&d_blob, numPaddingBytes);
+    ProtocolUtil::appendPaddingRaw(d_blob_sp.get(), numPaddingBytes);
 
     ++d_msgCount;
 
@@ -158,8 +158,9 @@ PutEventBuilder::packMessageInternal(const bdlbb::Blob& appData, int queueId)
 
 PutEventBuilder::PutEventBuilder(bdlbb::BlobBufferFactory* bufferFactory,
                                  bslma::Allocator*         allocator)
-: d_bufferFactory_p(bufferFactory)
-, d_blob(bufferFactory, allocator)
+: d_allocator_p(bslma::Default::allocator(allocator))
+, d_bufferFactory_p(bufferFactory)
+, d_blob_sp(0, allocator)  // initialized in `reset()`
 , d_msgStarted(false)
 , d_blobPayload_p(0)
 , d_rawPayload_p(0)
@@ -173,14 +174,13 @@ PutEventBuilder::PutEventBuilder(bdlbb::BlobBufferFactory* bufferFactory,
 , d_compressionAlgorithmType(bmqt::CompressionAlgorithmType::e_NONE)
 , d_lastPackedMessageCompressionRatio(-1)
 , d_messagePropertiesInfo()
-, d_allocator_p(allocator)
 {
     reset();
 }
 
 int PutEventBuilder::reset()
 {
-    d_blob.removeAll();
+    d_blob_sp.createInplace(d_allocator_p, d_bufferFactory_p, d_allocator_p);
     d_msgStarted       = false;
     d_blobPayload_p    = 0;
     d_rawPayload_p     = 0;
@@ -203,8 +203,8 @@ int PutEventBuilder::reset()
     // Use placement new to create the object directly in the blob buffer,
     // while still calling it's constructor (to memset memory and initialize
     // some fields)
-    d_blob.setLength(sizeof(EventHeader));
-    new (d_blob.buffer(0).data()) EventHeader(EventType::e_PUT);
+    d_blob_sp->setLength(sizeof(EventHeader));
+    new (d_blob_sp->buffer(0).data()) EventHeader(EventType::e_PUT);
 
     return 0;
 }
@@ -410,10 +410,22 @@ const bdlbb::Blob& PutEventBuilder::blob() const
 {
     // Fix packet's length in header now that we know it ..  Following is valid
     // (see comment in reset)
-    EventHeader& eh = *reinterpret_cast<EventHeader*>(d_blob.buffer(0).data());
-    eh.setLength(d_blob.length());
+    EventHeader& eh = *reinterpret_cast<EventHeader*>(
+        d_blob_sp->buffer(0).data());
+    eh.setLength(d_blob_sp->length());
 
-    return d_blob;
+    return *d_blob_sp;
+}
+
+bsl::shared_ptr<bdlbb::Blob> PutEventBuilder::blob_sp() const
+{
+    // Fix packet's length in header now that we know it ..  Following is valid
+    // (see comment in reset)
+    EventHeader& eh = *reinterpret_cast<EventHeader*>(
+        d_blob_sp->buffer(0).data());
+    eh.setLength(d_blob_sp->length());
+
+    return d_blob_sp;
 }
 
 const bmqp::MessageProperties* PutEventBuilder::messageProperties() const
