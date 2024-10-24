@@ -509,7 +509,7 @@ int RecoveryManager::processSendDataChunks(
                 .syncConfig()
                 .partitionSyncEventSize() <= builder.eventSize()) {
             const bmqt::GenericResult::Enum writeRc = destination->write(
-                builder.blob(),
+                builder.blob_sp(),
                 bmqp::EventType::e_PARTITION_SYNC);
 
             if (bmqt::GenericResult::e_SUCCESS != writeRc) {
@@ -533,7 +533,7 @@ int RecoveryManager::processSendDataChunks(
 
     if (0 < builder.messageCount()) {
         const bmqt::GenericResult::Enum writeRc = destination->write(
-            builder.blob(),
+            builder.blob_sp(),
             bmqp::EventType::e_PARTITION_SYNC);
 
         if (bmqt::GenericResult::e_SUCCESS != writeRc) {
