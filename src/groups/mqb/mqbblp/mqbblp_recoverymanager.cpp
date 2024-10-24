@@ -1707,7 +1707,7 @@ int RecoveryManager::replayPartition(
 
     bmqp::StorageEventBuilder builder(mqbs::FileStoreProtocol::k_VERSION,
                                       bmqp::EventType::e_PARTITION_SYNC,
-                                      &d_clusterData_p->bufferFactory(),
+                                      &d_clusterData_p->blobSpPool(),
                                       d_allocator_p);
 
     // Note that partition has to be replayed from the record *after*
@@ -3271,7 +3271,7 @@ void RecoveryManager::processStorageEvent(
 
     bmqp::StorageEventBuilder seb(mqbs::FileStoreProtocol::k_VERSION,
                                   bmqp::EventType::e_STORAGE,
-                                  &d_clusterData_p->bufferFactory(),
+                                  &d_clusterData_p->blobSpPool(),
                                   d_allocator_p);
 
     while (1 == iter.next()) {

@@ -3533,7 +3533,7 @@ int StorageManager::start(bsl::ostream& errorDescription)
         "RecoveryManager");
 
     d_recoveryManager_mp.load(new (*recoveryManagerAllocator) RecoveryManager(
-                                  &d_clusterData_p->bufferFactory(),
+                                  d_blobSpPool_p,
                                   d_clusterConfig,
                                   *d_clusterData_p,
                                   dsCfg,

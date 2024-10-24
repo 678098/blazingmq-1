@@ -5184,7 +5184,7 @@ FileStore::FileStore(const DataStoreConfig&  config,
 , d_nagglePacketCount(k_NAGLE_PACKET_COUNT)
 , d_storageEventBuilder(FileStoreProtocol::k_VERSION,
                         bmqp::EventType::e_STORAGE,
-                        config.bufferFactory(),
+                        d_blobSpPool_p,
                         allocator)
 {
     // PRECONDITIONS
@@ -6489,6 +6489,9 @@ FileStore::generateReceipt(NodeContext*         nodeContext,
         nodeContext->d_state->unlock();
     }
     else {
+        // Data under the pointer `nodeContext->d_blob_sp` might be in use now,
+        // so we have to allocate shared pointer to another blob
+        nodeContext->d_blob_sp = d_blobSpPool_p->getObject();
         bmqp::ProtocolUtil::buildReceipt(nodeContext->d_blob_sp.get(),
                                          d_config.partitionId(),
                                          primaryLeaseId,

@@ -69,6 +69,7 @@
 
 // BDE
 #include <bdlbb_blob.h>
+#include <bdlcc_sharedobjectpool.h>
 #include <bslma_allocator.h>
 #include <bslma_usesbslmaallocator.h>
 #include <bslmf_nestedtraitdeclaration.h>
@@ -86,11 +87,17 @@ namespace bmqp {
 
 /// Mechanism to build a BlazingMQ STORAGE event
 class StorageEventBuilder BSLS_CPP11_FINAL {
+  public:
+    /// Pool of shared pointers to Blobs
+    typedef bdlcc::SharedObjectPool<
+        bdlbb::Blob,
+        bdlcc::ObjectPoolFunctors::DefaultCreator,
+        bdlcc::ObjectPoolFunctors::RemoveAll<bdlbb::Blob> >
+        BlobSpPool;
+
   private:
     // DATA
-    bslma::Allocator* d_allocator_p;
-
-    bdlbb::BlobBufferFactory* d_bufferFactory_p;
+    BlobSpPool* d_blobSpPool_p;
 
     int d_storageProtocolVersion;
     // file storage protocol version
@@ -139,7 +146,7 @@ class StorageEventBuilder BSLS_CPP11_FINAL {
     /// `e_PARTITION_SYNC`.
     StorageEventBuilder(int                       storageProtocolVersion,
                         EventType::Enum           eventType,
-                        bdlbb::BlobBufferFactory* bufferFactory,
+                        BlobSpPool*               blobSpPool_p,
                         bslma::Allocator*         allocator);
 
     // MANIPULATORS

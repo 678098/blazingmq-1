@@ -106,13 +106,12 @@ bmqt::EventBuilderResult::Enum StorageEventBuilder::packMessageImp(
 StorageEventBuilder::StorageEventBuilder(
     int                       storageProtocolVersion,
     EventType::Enum           eventType,
-    bdlbb::BlobBufferFactory* bufferFactory,
+    BlobSpPool*               blobSpPool_p,
     bslma::Allocator*         allocator)
-: d_allocator_p(bslma::Default::allocator(allocator))
-, d_bufferFactory_p(bufferFactory)
+: d_blobSpPool_p(blobSpPool_p)
 , d_storageProtocolVersion(storageProtocolVersion)
 , d_eventType(eventType)
-, d_blob_sp(0, d_allocator_p)  // initialized in `reset()`
+, d_blob_sp(0, allocator)  // initialized in `reset()`
 , d_msgCount(0)
 {
     // PRECONDITIONS
@@ -124,7 +123,7 @@ StorageEventBuilder::StorageEventBuilder(
 // MANIPULATORS
 void StorageEventBuilder::reset()
 {
-    d_blob_sp.createInplace(d_allocator_p, d_bufferFactory_p, d_allocator_p);
+    d_blob_sp = d_blobSpPool_p->getObject();
     d_msgCount = 0;
 
     // NOTE: Since StorageEventBuilder owns the blob and we just reset it, we
