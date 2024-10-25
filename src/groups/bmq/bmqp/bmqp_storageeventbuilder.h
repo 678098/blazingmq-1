@@ -69,6 +69,7 @@
 
 // BDE
 #include <bdlbb_blob.h>
+#include <bdlcc_sharedobjectpool.h>
 #include <bslma_allocator.h>
 #include <bslma_usesbslmaallocator.h>
 #include <bslmf_nestedtraitdeclaration.h>
@@ -86,15 +87,25 @@ namespace bmqp {
 
 /// Mechanism to build a BlazingMQ STORAGE event
 class StorageEventBuilder BSLS_CPP11_FINAL {
+  public:
+    /// Pool of shared pointers to Blobs
+    typedef bdlcc::SharedObjectPool<
+        bdlbb::Blob,
+        bdlcc::ObjectPoolFunctors::DefaultCreator,
+        bdlcc::ObjectPoolFunctors::RemoveAll<bdlbb::Blob> >
+        BlobSpPool;
+
   private:
     // DATA
+    BlobSpPool* d_blobSpPool_p;
+
     int d_storageProtocolVersion;
     // file storage protocol version
 
     EventType::Enum d_eventType;
     // Event type, either 'e_STORAGE' or 'e_PARTITION_SYNC'
 
-    mutable bdlbb::Blob d_blob;
+    mutable bsl::shared_ptr<bdlbb::Blob> d_blob_sp;
     // blob being built by this PushEventBuilder.
     // This has been done mutable to be able to skip
     // writing the length until the blob is retrieved.
@@ -133,10 +144,10 @@ class StorageEventBuilder BSLS_CPP11_FINAL {
     /// blob, and operating with the specified `storageProtocolVersion`.
     /// Behavior is undefined unless `eventType` is `e_STORAGE` or
     /// `e_PARTITION_SYNC`.
-    StorageEventBuilder(int                       storageProtocolVersion,
-                        EventType::Enum           eventType,
-                        bdlbb::BlobBufferFactory* bufferFactory,
-                        bslma::Allocator*         allocator);
+    StorageEventBuilder(int               storageProtocolVersion,
+                        EventType::Enum   eventType,
+                        BlobSpPool*       blobSpPool_p,
+                        bslma::Allocator* allocator);
 
     // MANIPULATORS
 
@@ -197,6 +208,11 @@ class StorageEventBuilder BSLS_CPP11_FINAL {
     /// by this event.  If no messages were added, this will return an empty
     /// blob, i.e., a blob with length == 0.
     const bdlbb::Blob& blob() const;
+
+    /// Return a reference not offering modifiable access to the blob built
+    /// by this event.  If no messages were added, this will return an empty
+    /// blob, i.e., a blob with length == 0.
+    bsl::shared_ptr<bdlbb::Blob> blob_sp() const;
 };
 
 // ============================================================================
@@ -272,7 +288,7 @@ inline EventType::Enum StorageEventBuilder::eventType() const
 
 inline int StorageEventBuilder::eventSize() const
 {
-    return d_blob.length();
+    return d_blob_sp->length();
 }
 
 inline int StorageEventBuilder::messageCount() const

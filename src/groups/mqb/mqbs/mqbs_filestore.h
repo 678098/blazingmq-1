@@ -241,16 +241,15 @@ class FileStore : public DataStore {
     };
 
     struct NodeContext {
+        /// Last Receipt from/to this node (Replica/Primary).
         DataStoreRecordKey d_key;
-        // last Receipt from/to this
-        // node (Replica/Primary).
-        bdlbb::Blob d_blob;
-        // Receipt to this node.
+
+        /// Receipt to this node.
+        bsl::shared_ptr<bdlbb::Blob> d_blob_sp;
+
         bsl::shared_ptr<bmqu::AtomicState> d_state;
 
-        NodeContext(bdlbb::BlobBufferFactory* factory,
-                    const DataStoreRecordKey& key,
-                    bslma::Allocator*         basicAllocator = 0);
+        NodeContext(BlobSpPool* blobSpPool_p, const DataStoreRecordKey& key);
     };
     typedef bmqc::OrderedHashMap<DataStoreRecordKey,
                                  ReceiptContext,
@@ -1110,11 +1109,10 @@ inline FileStore::ReceiptContext::ReceiptContext(
 // class FileStore::NodeContext
 // ----------------------------
 
-inline FileStore::NodeContext::NodeContext(bdlbb::BlobBufferFactory* factory,
-                                           const DataStoreRecordKey& key,
-                                           bslma::Allocator* basicAllocator)
+inline FileStore::NodeContext::NodeContext(BlobSpPool* blobSpPool_p,
+                                           const DataStoreRecordKey& key)
 : d_key(key)
-, d_blob(factory, basicAllocator)
+, d_blob_sp(blobSpPool_p->getObject())
 {
     // NOTHING
 }

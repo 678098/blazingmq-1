@@ -85,15 +85,15 @@ namespace bmqp {
 class PushEventBuilder {
   private:
     // DATA
+    /// Allocator to use.
     bslma::Allocator* d_allocator_p;
-    // Allocator to use.
 
-    mutable bdlbb::Blob d_blob;
-    // blob being built by this
-    // PushEventBuilder.
-    // This has been done mutable to be
-    // able to skip writing the length
-    // until the blob is retrieved.
+    /// Buffer factory used for blob construction.
+    bdlbb::BlobBufferFactory* d_bufferFactory_p;
+
+    /// Blob being built by this object.
+    /// `mutable` to skip writing the length until the blob is retrieved.
+    mutable bsl::shared_ptr<bdlbb::Blob> d_blob_sp;
 
     int d_msgCount;
     // number of messages currently in
@@ -244,6 +244,8 @@ class PushEventBuilder {
     /// by this event.  If no messages were added, this will return a blob
     /// composed only of an `EventHeader`.
     const bdlbb::Blob& blob() const;
+
+    bsl::shared_ptr<bdlbb::Blob> blob_sp() const;
 };
 
 // ============================================================================
@@ -263,7 +265,7 @@ inline int PushEventBuilder::eraseCurrentMessage()
 #ifdef BSLS_ASSERT_SAFE_IS_ACTIVE
     bool hasNoOptions    = optionsSize == 0 && !d_currPushHeader.isSet();
     bool hasOptions      = optionsSize > 0 && d_currPushHeader.isSet();
-    bool isValidBlobSize = d_blob.length() >
+    bool isValidBlobSize = d_blob_sp->length() >
                            (static_cast<int>(sizeof(PushHeader)) +
                             optionsSize);
 
@@ -276,7 +278,8 @@ inline int PushEventBuilder::eraseCurrentMessage()
         // Flush any buffered changes if necessary, and make this object
         // not refer to any valid blob object.
 
-        d_blob.setLength(d_blob.length() - sizeof(PushHeader) - optionsSize);
+        d_blob_sp->setLength(d_blob_sp->length() - sizeof(PushHeader) -
+                             optionsSize);
 
         d_options.reset();
     }
@@ -339,10 +342,10 @@ inline int PushEventBuilder::eventSize() const
                      (optionsCount == 0 && !d_currPushHeader.isSet()));
 
     if (optionsCount > 0) {
-        return d_blob.length() - sizeof(PushHeader) - d_options.size();
+        return d_blob_sp->length() - sizeof(PushHeader) - d_options.size();
         // RETURN
     }
-    return d_blob.length();
+    return d_blob_sp->length();
 }
 
 inline int PushEventBuilder::messageCount() const

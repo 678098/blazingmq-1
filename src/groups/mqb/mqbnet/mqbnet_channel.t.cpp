@@ -54,11 +54,11 @@ namespace bmqio {
 
 class TestChannelEx : public TestChannel {
   private:
-    size_t                   d_limit;
-    mqbnet::Channel&         d_channel;
-    bool                     d_isInHWM;
-    bslmt::ReaderWriterMutex d_mutex;
-    bdlbb::Blob              d_eof;
+    size_t                       d_limit;
+    mqbnet::Channel&             d_channel;
+    bool                         d_isInHWM;
+    bslmt::ReaderWriterMutex     d_mutex;
+    bsl::shared_ptr<bdlbb::Blob> d_eof_sp;
 
   public:
     TestChannelEx(mqbnet::Channel&          channel,
@@ -84,16 +84,31 @@ const char   k_CONTENT[]   = "Being is always the Being of a being";
 const size_t k_BUFFER_SIZE = sizeof(k_CONTENT) * 100;
 
 struct PseudoBuilder {
-    bdlbb::Blob d_payload;
+    bslma::Allocator*               d_allocator_p;
+    bdlbb::PooledBlobBufferFactory* d_bufferFactory_p;
+    bsl::shared_ptr<bdlbb::Blob>    d_payload_sp;
+
     PseudoBuilder(bdlbb::PooledBlobBufferFactory* bufferFactory,
                   bslma::Allocator*               allocator_p)
-    : d_payload(bufferFactory, allocator_p)
+    : d_allocator_p(bslma::Default::allocator(allocator_p))
+    , d_bufferFactory_p(bufferFactory)
+    , d_payload_sp(new(*d_allocator_p)
+                       bdlbb::Blob(d_bufferFactory_p, d_allocator_p),
+                   d_allocator_p)
     {
         // NOTHING
     }
-    int  messageCount() const { return d_payload.length() ? 1 : 0; }
-    void reset() { d_payload.removeAll(); }
-    const bdlbb::Blob& blob() const { return d_payload; }
+    int  messageCount() const { return d_payload_sp->length() ? 1 : 0; }
+    void reset()
+    {
+        d_payload_sp.createInplace(d_allocator_p,
+                                   d_bufferFactory_p,
+                                   d_allocator_p);
+    }
+    const bsl::shared_ptr<bdlbb::Blob>& blob_sp() const
+    {
+        return d_payload_sp;
+    }
 };
 template <class Builder>
 struct Iterator {
@@ -104,11 +119,14 @@ struct Iterator {
 
 template <class Builder>
 class Tester {
+  public:
+    typedef bsl::deque<bsl::shared_ptr<bdlbb::Blob> > BlobDeque;
+
   private:
     Builder                         d_builder;
     bdlbb::PooledBlobBufferFactory& d_bufferFactory;
     mqbnet::Channel&                d_channel;
-    bsl::deque<bdlbb::Blob>         d_history;
+    BlobDeque                       d_history;
     bslmt::ThreadUtil::Handle       d_threadHandle;
     bsls::AtomicBool                d_stop;
     bslma::Allocator*               d_allocator_p;
@@ -297,8 +315,9 @@ TestChannelEx::TestChannelEx(mqbnet::Channel&          channel,
 , d_limit(0)
 , d_channel(channel)
 , d_isInHWM(false)
-, d_eof(factory, basicAllocator)
+, d_eof_sp(0, basicAllocator)
 {
+    d_eof_sp.createInplace(basicAllocator, factory, basicAllocator);
     static const char signature[] = "12345";
     bdlbb::BlobBuffer blobBuffer;
     factory->allocate(&blobBuffer);
@@ -307,7 +326,7 @@ TestChannelEx::TestChannelEx(mqbnet::Channel&          channel,
 
     bsl::memcpy(blobBuffer.data(), signature, sizeof(signature));
 
-    d_eof.appendDataBuffer(blobBuffer);
+    d_eof_sp->appendDataBuffer(blobBuffer);
 }
 
 TestChannelEx::~TestChannelEx()
@@ -380,10 +399,10 @@ void TestChannelEx::write(bmqio::Status*     status,
 
 bool TestChannelEx::waitForChannel(const bsls::TimeInterval& interval)
 {
-    ASSERT_EQ(d_channel.writeBlob(d_eof, bmqp::EventType::e_CONTROL),
+    ASSERT_EQ(d_channel.writeBlob(d_eof_sp, bmqp::EventType::e_CONTROL),
               bmqt::GenericResult::e_SUCCESS);
 
-    return waitFor(d_eof, interval);
+    return waitFor(*d_eof_sp, interval);
 }
 
 }
@@ -417,7 +436,7 @@ inline void Tester<Builder>::test()
             bmqt::EventBuilderResult::e_OPTION_TOO_BIG == rc)) {
         BSLS_PERFORMANCEHINT_UNLIKELY_HINT;
 
-        d_history.push_back(d_builder.blob());
+        d_history.push_back(d_builder.blob_sp());
         d_builder.reset();
 
         rc = build();
@@ -590,23 +609,24 @@ inline bmqt::EventBuilderResult::Enum Tester<bmqp::AckEventBuilder>::build()
 template <>
 inline bmqt::EventBuilderResult::Enum Tester<PseudoBuilder>::build()
 {
-    d_builder.d_payload.setLength(sizeof(bmqp::EventHeader));
+    d_builder.d_payload_sp->setLength(sizeof(bmqp::EventHeader));
 
-    bmqp::EventHeader* eventHeader = new (d_builder.d_payload.buffer(0).data())
+    bmqp::EventHeader* eventHeader = new (
+        d_builder.d_payload_sp->buffer(0).data())
         bmqp::EventHeader(bmqp::EventType::e_CONTROL);
 
     bdlbb::BlobBuffer blobBuffer;
 
     d_bufferFactory.allocate(&blobBuffer);
     setContent(&blobBuffer);
-    d_builder.d_payload.appendDataBuffer(blobBuffer);
+    d_builder.d_payload_sp->appendDataBuffer(blobBuffer);
 
-    eventHeader->setLength(d_builder.d_payload.length());
+    eventHeader->setLength(d_builder.d_payload_sp->length());
 
-    d_channel.writeBlob(d_builder.d_payload, bmqp::EventType::e_CONTROL);
+    d_channel.writeBlob(d_builder.d_payload_sp, bmqp::EventType::e_CONTROL);
 
     // never return e_EVENT_TOO_BIG
-    d_history.push_back(d_builder.d_payload);
+    d_history.push_back(d_builder.d_payload_sp);
     d_builder.reset();
 
     return bmqt::EventBuilderResult::e_SUCCESS;
@@ -617,7 +637,7 @@ inline size_t Tester<Builder>::verify(
     const bsl::shared_ptr<bmqio::TestChannelEx>& testChannel)
 {
     if (d_builder.messageCount()) {
-        d_history.push_back(d_builder.blob());
+        d_history.push_back(d_builder.blob_sp());
         d_builder.reset();
     }
 
@@ -628,11 +648,11 @@ inline size_t Tester<Builder>::verify(
     size_t            counter    = 0;
     size_t            writeBlobs = 0;
 
-    for (bsl::deque<bdlbb::Blob>::iterator itHistory = d_history.begin();
+    for (BlobDeque::iterator itHistory = d_history.begin();
          itHistory != d_history.end();
          ++itHistory) {
-        const bdlbb::Blob& blob = *itHistory;
-        bmqp::Event        eventHistory(&blob, d_allocator_p);
+        const bsl::shared_ptr<BloombergLP::bdlbb::Blob>& blob_sp = *itHistory;
+        bmqp::Event        eventHistory(blob_sp.get(), d_allocator_p);
         Iterator<Builder>  itHistoryEvents(&d_bufferFactory, d_allocator_p);
 
         itHistoryEvents.load(eventHistory);
@@ -1006,18 +1026,19 @@ static void test4_controlBlob()
 
     // cannot assert 'writeCalls().size() == 0' because of auto-flushing
 
-    bdlbb::Blob       payload = bdlbb::Blob(&bufferFactory, s_allocator_p);
+    bsl::shared_ptr<bdlbb::Blob> payload_sp;
+    payload_sp.createInplace(s_allocator_p, &bufferFactory, s_allocator_p);
     bdlbb::BlobBuffer blobBuffer;
 
     bufferFactory.allocate(&blobBuffer);
     bsl::memset(blobBuffer.data(), 0, blobBuffer.size());
 
-    payload.appendDataBuffer(blobBuffer);
+    payload_sp->appendDataBuffer(blobBuffer);
 
     // Flush ACKs which are secondary
     channel.flush();
 
-    ASSERT_EQ(channel.writeBlob(payload, bmqp::EventType::e_CONTROL),
+    ASSERT_EQ(channel.writeBlob(payload_sp, bmqp::EventType::e_CONTROL),
               bmqt::GenericResult::e_SUCCESS);
 
     ASSERT_EQ(testChannel->waitForChannel(bsls::TimeInterval(1)), true);
@@ -1035,7 +1056,7 @@ static void test4_controlBlob()
     const bdlbb::Blob& lastWrite = (--testChannel->writeCalls().end())->d_blob;
 
     // make sure the control is the last
-    ASSERT_EQ(bdlbb::BlobUtil::compare(payload, lastWrite), 0);
+    ASSERT_EQ(bdlbb::BlobUtil::compare(*payload_sp, lastWrite), 0);
 }
 
 static void test5_reconnect()
@@ -1060,34 +1081,36 @@ static void test5_reconnect()
     channel.setChannel(bsl::weak_ptr<bmqio::TestChannelEx>(testChannel));
 
     {
-        bdlbb::Blob       payload = bdlbb::Blob(&bufferFactory, s_allocator_p);
+        bsl::shared_ptr<bdlbb::Blob> payload_sp;
+        payload_sp.createInplace(s_allocator_p, &bufferFactory, s_allocator_p);
         bdlbb::BlobBuffer blobBuffer;
 
         bufferFactory.allocate(&blobBuffer);
         setContent(&blobBuffer);
-        payload.appendDataBuffer(blobBuffer);
+        payload_sp->appendDataBuffer(blobBuffer);
 
-        ASSERT_EQ(channel.writeBlob(payload, bmqp::EventType::e_CONTROL),
+        ASSERT_EQ(channel.writeBlob(payload_sp, bmqp::EventType::e_CONTROL),
                   bmqt::GenericResult::e_SUCCESS);
 
         ASSERT_EQ(testChannel->waitForChannel(bsls::TimeInterval(1)), true);
         const bdlbb::Blob& write = testChannel->writeCalls().begin()->d_blob;
 
-        ASSERT_EQ(bdlbb::BlobUtil::compare(payload, write), 0);
+        ASSERT_EQ(bdlbb::BlobUtil::compare(*payload_sp, write), 0);
     }
     ASSERT_EQ(testChannel->writeCalls().size(), 1U);
 
     testChannel->setWriteStatus(bmqio::StatusCategory::e_CONNECTION);
 
     {
-        bdlbb::Blob       payload = bdlbb::Blob(&bufferFactory, s_allocator_p);
+        bsl::shared_ptr<bdlbb::Blob> payload_sp;
+        payload_sp.createInplace(s_allocator_p, &bufferFactory, s_allocator_p);
         bdlbb::BlobBuffer blobBuffer;
 
         bufferFactory.allocate(&blobBuffer);
         setContent(&blobBuffer);
-        payload.appendDataBuffer(blobBuffer);
+        payload_sp->appendDataBuffer(blobBuffer);
 
-        ASSERT_EQ(channel.writeBlob(payload, bmqp::EventType::e_CONTROL),
+        ASSERT_EQ(channel.writeBlob(payload_sp, bmqp::EventType::e_CONTROL),
                   bmqt::GenericResult::e_SUCCESS);
     }
     ASSERT_EQ(testChannel->writeCalls().size(), 1U);
@@ -1099,98 +1122,25 @@ static void test5_reconnect()
     testChannel->setWriteStatus(bmqio::StatusCategory::e_SUCCESS);
 
     {
-        bdlbb::Blob       payload = bdlbb::Blob(&bufferFactory, s_allocator_p);
+        bsl::shared_ptr<bdlbb::Blob> payload_sp;
+        payload_sp.createInplace(s_allocator_p, &bufferFactory, s_allocator_p);
         bdlbb::BlobBuffer blobBuffer;
 
         bufferFactory.allocate(&blobBuffer);
         setContent(&blobBuffer);
-        payload.appendDataBuffer(blobBuffer);
+        payload_sp->appendDataBuffer(blobBuffer);
 
-        ASSERT_EQ(channel.writeBlob(payload, bmqp::EventType::e_CONTROL),
+        ASSERT_EQ(channel.writeBlob(payload_sp, bmqp::EventType::e_CONTROL),
                   bmqt::GenericResult::e_SUCCESS);
 
         ASSERT_EQ(testChannel->waitForChannel(bsls::TimeInterval(1)), true);
         const bdlbb::Blob& write =
             (++testChannel->writeCalls().begin())->d_blob;
 
-        ASSERT_EQ(bdlbb::BlobUtil::compare(payload, write), 0);
+        ASSERT_EQ(bdlbb::BlobUtil::compare(*payload_sp, write), 0);
     }
 
     ASSERT_EQ(testChannel->writeCalls().size(), 2U);
-}
-
-static void test6_weakData()
-// ------------------------------------------------------------------------
-//
-// Call writePut which takes weak_ptr under HWM causing the channel to
-// buffer data.  Release the data, simulate LWM, and observe negative
-// return code,
-//
-// ------------------------------------------------------------------------
-{
-    bdlbb::PooledBlobBufferFactory bufferFactory(k_BUFFER_SIZE, s_allocator_p);
-    mqbnet::Channel::ItemPool      itemPool(mqbnet::Channel::k_ITEM_SIZE,
-                                       s_allocator_p);
-    mqbnet::Channel channel(&bufferFactory, &itemPool, "test", s_allocator_p);
-
-    bsl::shared_ptr<bmqio::TestChannelEx> testChannel(
-        new (*s_allocator_p)
-            bmqio::TestChannelEx(channel, &bufferFactory, s_allocator_p),
-        s_allocator_p);
-
-    channel.setChannel(bsl::weak_ptr<bmqio::TestChannelEx>(testChannel));
-
-    // Saturate the channel causing it to buffer next write
-    channel.onWatermark(bmqio::ChannelWatermarkType::e_HIGH_WATERMARK);
-
-    {
-        bsl::shared_ptr<bdlbb::Blob> payload(
-            new (*s_allocator_p) bdlbb::Blob(&bufferFactory, s_allocator_p),
-            s_allocator_p);
-        bdlbb::BlobBuffer                  blobBuffer;
-        bsl::shared_ptr<bmqu::AtomicState> state(new (*s_allocator_p)
-                                                     bmqu::AtomicState,
-                                                 s_allocator_p);
-        bmqp::PutHeader                    ph;
-
-        bufferFactory.allocate(&blobBuffer);
-
-        payload->appendDataBuffer(blobBuffer);
-        ph.setMessageGUID(bmqp::MessageGUIDGenerator::testGUID());
-
-        // This write ends up in the builder and cannot be canceled.
-        ASSERT_EQ(channel.writePut(ph, payload, state, false),
-                  bmqt::GenericResult::e_SUCCESS);
-        // After 'onWatermark', the channel starts buffering.
-    }
-    ASSERT_EQ(testChannel->writeCalls().size(), 0U);
-
-    // Next write
-    {
-        bsl::shared_ptr<bdlbb::Blob> payload(
-            new (*s_allocator_p) bdlbb::Blob(&bufferFactory, s_allocator_p),
-            s_allocator_p);
-        bdlbb::BlobBuffer                  blobBuffer;
-        bsl::shared_ptr<bmqu::AtomicState> state(new (*s_allocator_p)
-                                                     bmqu::AtomicState,
-                                                 s_allocator_p);
-        bmqp::PutHeader                    ph;
-
-        bufferFactory.allocate(&blobBuffer);
-
-        payload->appendDataBuffer(blobBuffer);
-        ph.setMessageGUID(bmqp::MessageGUIDGenerator::testGUID());
-
-        ASSERT_EQ(channel.writePut(ph, payload, state, true),
-                  bmqt::GenericResult::e_SUCCESS);
-    }
-
-    channel.onWatermark(bmqio::ChannelWatermarkType::e_LOW_WATERMARK);
-
-    ASSERT_EQ(testChannel->waitForChannel(bsls::TimeInterval(1)), true);
-
-    // Only the first write makes it to IO.
-    ASSERT_EQ(testChannel->writeCalls().size(), 1U);
 }
 
 // ============================================================================
@@ -1213,7 +1163,6 @@ int main(int argc, char* argv[])
     case 3: test3_highWatermarkInWriteCb(); break;
     case 4: test4_controlBlob(); break;
     case 5: test5_reconnect(); break;
-    case 6: test6_weakData(); break;
     default: {
         cerr << "WARNING: CASE '" << _testCase << "' NOT FOUND." << endl;
         s_testStatus = -1;

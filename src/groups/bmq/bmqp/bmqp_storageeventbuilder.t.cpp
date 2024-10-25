@@ -42,6 +42,12 @@ using namespace bsl;
 // ----------------------------------------------------------------------------
 namespace {
 
+typedef bdlcc::SharedObjectPool<
+    bdlbb::Blob,
+    bdlcc::ObjectPoolFunctors::DefaultCreator,
+    bdlcc::ObjectPoolFunctors::RemoveAll<bdlbb::Blob> >
+    BlobSpPool;
+
 const int k_RECORD_SIZE = 48;  // Size of a journal record.  Must be 4byte
                                // aligned.
 
@@ -184,7 +190,7 @@ static void test1_breathingTest()
 {
     bmqtst::TestHelper::printTestName("BREATHING TEST");
 
-    bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    BlobSpPool                     blobSpPool(-1, s_allocator_p);
     const char*                    PAYLOAD     = "abcdefghijklmnopqrstuvwx";
     const unsigned int             PAYLOAD_LEN = bsl::strlen(PAYLOAD);  // 24
     const char*                    JOURNAL_REC = "12345678";
@@ -196,7 +202,7 @@ static void test1_breathingTest()
     // Create StorageEventBuilder
     bmqp::StorageEventBuilder seb(1,  // storage protocol version
                                   bmqp::EventType::e_STORAGE,
-                                  &bufferFactory,
+                                  &blobSpPool,
                                   s_allocator_p);
     ASSERT_EQ(seb.eventSize(), static_cast<int>(sizeof(bmqp::EventHeader)));
     ASSERT_EQ(seb.messageCount(), 0);
@@ -284,10 +290,11 @@ static void test2_storageEventHavingMultipleMessages()
                                       " MESSAGES");
 
     const int                      k_SPV = 2;  // Storage protocol version
-    bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    BlobSpPool                     blobSpPool(-1, s_allocator_p);
+
     bmqp::StorageEventBuilder      seb(k_SPV,
                                   bmqp::EventType::e_STORAGE,
-                                  &bufferFactory,
+                                  &blobSpPool,
                                   s_allocator_p);
     bsl::vector<Data>              data(s_allocator_p);
     const size_t                   NUM_MSGS = 1000;
@@ -369,7 +376,7 @@ static void test3_packMessage_payloadTooBig()
 {
     bmqtst::TestHelper::printTestName("PACK MESSAGE - PAYLOAD TOO BIG");
 
-    bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    BlobSpPool blobSpPool(-1, s_allocator_p);
 
     const int          k_SPV               = 1;  // Storage proto version
     const char*        PAYLOAD             = "abcdefghijklmnopqrstuvwx";
@@ -380,7 +387,7 @@ static void test3_packMessage_payloadTooBig()
 
     bmqp::StorageEventBuilder seb(k_SPV,
                                   bmqp::EventType::e_STORAGE,
-                                  &bufferFactory,
+                                  &blobSpPool,
                                   s_allocator_p);
     bsl::string               bigPayload(s_allocator_p);
     bigPayload.resize(bmqp::StorageHeader::k_MAX_PAYLOAD_SIZE_SOFT + 4, 'a');
@@ -502,10 +509,10 @@ static void test4_packMessageRaw()
     // messages packed in event 'A'.
 
     const int                      k_SPV = 2;  // Storage protocol version
-    bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    BlobSpPool                     blobSpPool(-1, s_allocator_p);
     bmqp::StorageEventBuilder      sebA(k_SPV,
                                    bmqp::EventType::e_STORAGE,
-                                   &bufferFactory,
+                                   &blobSpPool,
                                    s_allocator_p);
     bsl::vector<Data>              data(s_allocator_p);
     const size_t                   NUM_MSGS = 1000;
@@ -531,7 +538,7 @@ static void test4_packMessageRaw()
     // Iterate over event 'A', and create event 'B' using 'packMessageRaw'.
     bmqp::StorageEventBuilder sebB(k_SPV,
                                    bmqp::EventType::e_STORAGE,
-                                   &bufferFactory,
+                                   &blobSpPool,
                                    s_allocator_p);
 
     while (1 == iterA.next() && dataIndex < NUM_MSGS) {
@@ -631,9 +638,10 @@ static void test5_packMessageRaw_emptyMessage()
 
     const int                      k_SPV = 2;  // Storage protocol version
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    BlobSpPool                     blobSpPool(-1, s_allocator_p);
     bmqp::StorageEventBuilder      seb(k_SPV,
                                   bmqp::EventType::e_STORAGE,
-                                  &bufferFactory,
+                                  &blobSpPool,
                                   s_allocator_p);
 
     bdlbb::Blob emptyBlob(&bufferFactory, s_allocator_p);
@@ -670,10 +678,11 @@ static void test6_packMessageRaw_invalidPosition()
 
     const int                      k_SPV = 2;  // Storage protocol version
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    BlobSpPool                     blobSpPool(-1, s_allocator_p);
     bdlbb::Blob                    k_EMPTY_BLOB(&bufferFactory, s_allocator_p);
     bmqp::StorageEventBuilder      seb(k_SPV,
                                   bmqp::EventType::e_STORAGE,
-                                  &bufferFactory,
+                                  &blobSpPool,
                                   s_allocator_p);
 
     // 1.

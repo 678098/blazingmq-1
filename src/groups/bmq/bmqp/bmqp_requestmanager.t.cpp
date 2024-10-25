@@ -462,10 +462,12 @@ static void test4_sendRequestTest()
     /// specified `request`, and set the specified `called` flag to true
     struct Caller {
         static bmqt::GenericResult::Enum
-        sendFn(bool* called, const bdlbb::Blob& blob, const ReqSp& request)
+        sendFn(bool*                               called,
+               const bsl::shared_ptr<bdlbb::Blob>& blob_sp,
+               const ReqSp&                        request)
         {
             *called = true;
-            bmqp::Event ev(&blob, s_allocator_p);
+            bmqp::Event ev(blob_sp.get(), s_allocator_p);
             ASSERT(ev.isControlEvent());
             Mes controlMessage(s_allocator_p);
             ASSERT_EQ(0, ev.loadControlEvent(&controlMessage));
