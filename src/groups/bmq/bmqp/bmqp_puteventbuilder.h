@@ -61,7 +61,6 @@
 //
 
 // BMQ
-
 #include <bmqp_messageproperties.h>
 #include <bmqp_protocol.h>
 #include <bmqt_compressionalgorithmtype.h>
@@ -71,6 +70,7 @@
 // BDE
 #include <bdlb_nullablevalue.h>
 #include <bdlbb_blob.h>
+#include <bsl_functional.h>
 #include <bslma_allocator.h>
 #include <bslma_usesbslmaallocator.h>
 #include <bslmf_nestedtraitdeclaration.h>
@@ -95,67 +95,51 @@ class PutEventBuilder {
     // DATA
     bdlbb::BlobBufferFactory* d_bufferFactory_p;
 
+    /// Blob being built by this PutEventBuilder.
+    /// This has been done mutable to be able to
+    /// skip writing the length until the blob is retrieved.
     mutable bdlbb::Blob d_blob;
-    // blob being built by this
-    // PutEventBuilder.
-    // This has been done mutable to be able to
-    // skip writing the length until the blob
-    // is retrieved.
 
+    /// Has `startMessage` been called.
     bool d_msgStarted;
-    // has startMessage been called
 
+    /// Pointer to a blob holding the payload of the current message (if any).
     const bdlbb::Blob* d_blobPayload_p;
-    // pointer to a blob holding the
-    // payload of the current message
-    //(if any)
 
+    /// Raw pointer to a data buffer holding the payload of the current
+    /// message (if any).
     const char* d_rawPayload_p;
-    // raw pointer to raw data buffer
-    // holding the payload of the
-    // current message (if any)
 
+    /// The size of `d_rawPayload_p` buffer, if it is not null.
     int d_rawPayloadLength;
-    // if d_rawPayload_p is not null,
-    // this represents the size of that
-    // buffer
 
+    /// Pointer to message properties of the current message (if any).
     const MessageProperties* d_properties_p;
-    // Pointer to message properties of
-    // the current message (if any)
 
+    /// Flags for PutHeader of current message.
     int d_flags;
-    // Flags for PutHeader of current
-    // message.
 
+    /// GUID of the current message.
     bmqt::MessageGUID d_messageGUID;
-    // GUID of the current message.
 
+    /// Optional Group Id of the current message.
     NullableMsgGroupId d_msgGroupId;
-    // Optional Group Id of the current
-    // message.
 
+    /// Number of messages currently in the event.
     int d_msgCount;
-    // number of messages currently in
-    // the event
 
+    /// CRC-32C of the current message's payload (user either sets it
+    /// explicitly or indirectly by invoking 'packMessage').
     unsigned int d_crc32c;
-    // CRC-32C of the current message's
-    // payload (user either sets it
-    // explicitly or indirectly by
-    // invoking 'packMessage').
 
+    /// Compression Algorithm Type of the current message's payload (the user
+    /// sets it explicitly).
     bmqt::CompressionAlgorithmType::Enum d_compressionAlgorithmType;
-    // Compression Algorithm Type of the
-    // current message's payload (the
-    // user sets it explicitly)
 
+    /// Compression ratio of the last packed message, or -1 if no message has
+    /// yet been packed.  Note that if message was not compressed, this ratio
+    /// will be 1.
     double d_lastPackedMessageCompressionRatio;
-    // Compression ratio of the last
-    // packed message, or -1 if no
-    // message has yet been packed.
-    // Note that if message was not
-    // compressed, this ratio will be 1.
 
     MessagePropertiesInfo d_messagePropertiesInfo;
 
@@ -171,9 +155,8 @@ class PutEventBuilder {
   private:
     // CLASS LEVEL METHODS
 
-    /// Reset flags and message guid of PutEventBuilder instance pointed by
-    /// the specified `ptr`.
-    static void resetFields(void* ptr);
+    /// Reset flags and message guid of this object.
+    void resetFields();
 
     // PRIVATE MANIPULATORS
     bmqt::EventBuilderResult::Enum
