@@ -53,12 +53,11 @@ bool isWordAligned(const bdlbb::Blob& blob)
 // class PutEventBuilder
 // ---------------------
 
-void PutEventBuilder::resetFields(void* ptr)
+void PutEventBuilder::resetFields()
 {
-    PutEventBuilder* builder = static_cast<PutEventBuilder*>(ptr);
-    builder->d_flags         = 0;
-    builder->d_messageGUID   = bmqt::MessageGUID();
-    builder->d_crc32c        = 0;
+    d_flags       = 0;
+    d_messageGUID = bmqt::MessageGUID();
+    d_crc32c      = 0;
 }
 
 bmqt::EventBuilderResult::Enum
@@ -66,6 +65,22 @@ PutEventBuilder::packMessageInternal(const bdlbb::Blob& appData, int queueId)
 {
     typedef bmqt::EventBuilderResult Result;
     typedef OptionUtil::OptionMeta   OptionMeta;
+
+    // CorrelationId, guid and flags need to be reset after this method
+    // (irrespective of its success or failure).  Create a proctor to auto
+    // reset them.
+    struct ResetGuard {
+        PutEventBuilder& d_putEventBuilder;
+
+        explicit ResetGuard(PutEventBuilder& putEventBuilder)
+        : d_putEventBuilder(putEventBuilder)
+        {
+            // NOTHING
+        }
+
+        ~ResetGuard() { d_putEventBuilder.reset(); }
+    };
+    const ResetGuard guard(*this);
 
     int       appDataLength   = appData.length();
     int       numPaddingBytes = 0;
@@ -217,12 +232,6 @@ PutEventBuilder::packMessageInOldStyle(int queueId)
 
     typedef bmqt::EventBuilderResult Result;
 
-    // Guid and flags need to be reset after this method (irrespective of its
-    // success or failure).  Create a proctor to auto reset them.
-    const bsl::function<void()> f =
-        bdlf::BindUtil::bind(&PutEventBuilder::resetFields, this);
-    bdlb::ScopeExitAny resetter(f);
-
     // Calculate length of entire application data (includes payload, message
     // properties and padding, if any).
     bdlbb::Blob applicationData(d_bufferFactory_p, d_allocator_p);
@@ -303,13 +312,6 @@ bmqt::EventBuilderResult::Enum PutEventBuilder::packMessage(int queueId)
     BSLS_ASSERT_SAFE(d_msgStarted);
 
     typedef bmqt::EventBuilderResult Result;
-
-    // CorrelationId, guid and flags need to be reset after this method
-    // (irrespective of its success or failure).  Create a proctor to auto
-    // reset them.
-    const bsl::function<void()> f =
-        bdlf::BindUtil::bind(&PutEventBuilder::resetFields, this);
-    bdlb::ScopeExitAny resetter(f);
 
     // Calculate length of entire application data (includes payload, message
     // properties and padding, if any).
@@ -395,12 +397,6 @@ bmqt::EventBuilderResult::Enum PutEventBuilder::packMessageRaw(int queueId)
 {
     // PRECONDITIONS
     BSLS_ASSERT_SAFE(d_msgStarted);
-
-    // Guid and flags need to be reset after this method (irrespective of its
-    // success or failure).  Create a proctor to auto reset them.
-    const bsl::function<void()> f =
-        bdlf::BindUtil::bind(&PutEventBuilder::resetFields, this);
-    bdlb::ScopeExitAny resetter(f);
 
     // Note that the 'd_blobPayload_p' has the entire application data.
     return packMessageInternal(*d_blobPayload_p, queueId);
