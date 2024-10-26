@@ -113,7 +113,6 @@ class ClusterNodeImp : public ClusterNode {
     ClusterNodeImp(ClusterImp*                cluster,
                    const mqbcfg::ClusterNode& config,
                    bdlbb::BlobBufferFactory*  blobBufferFactory,
-                   Channel::ItemPool*         itemPool,
                    bslma::Allocator*          allocator);
 
     /// Destructor.
@@ -277,7 +276,6 @@ class ClusterImp : public Cluster {
                const bsl::vector<mqbcfg::ClusterNode>& nodesConfig,
                int                                     selfNodeId,
                bdlbb::BlobBufferFactory*               blobBufferFactory,
-               Channel::ItemPool*                      itemPool,
                bslma::Allocator*                       allocator);
 
     /// Destructor

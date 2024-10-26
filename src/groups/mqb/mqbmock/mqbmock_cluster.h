@@ -178,9 +178,6 @@ class Cluster : public mqbi::Cluster {
     mqbcfg::ClusterDefinition d_clusterDefinition;
     // Cluster definition
 
-    mqbnet::Channel::ItemPool d_itemPool;
-    // Item pool
-
     TestChannelMap d_channels;
     // Test channels
 
@@ -583,11 +580,6 @@ inline bdlmt::EventScheduler& Cluster::_scheduler()
 inline bdlmt::EventSchedulerTestTimeSource& Cluster::_timeSource()
 {
     return d_timeSource;
-}
-
-inline mqbnet::Channel::ItemPool& Cluster::_itemPool()
-{
-    return d_itemPool;
 }
 
 inline mqbc::ClusterData* Cluster::_clusterData()
