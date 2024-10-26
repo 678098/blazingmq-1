@@ -195,8 +195,6 @@ class TransportManager {
     // BlobBufferFactory to use by the
     // sessions
 
-    Channel::ItemPool d_itemPool;
-
     bslma::ManagedPtr<Negotiator> d_negotiator_mp;
     // Negotiation to use
 

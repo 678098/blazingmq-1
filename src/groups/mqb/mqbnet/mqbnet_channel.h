@@ -358,10 +358,6 @@ class Channel {
         e_HWM = 5  // HWM
     };
 
-  public:
-    // CONSTANTS
-    static const int k_ITEM_SIZE = sizeof(Item);  // for ItemPool
-
   private:
     // CONSTANTS
     static const int k_NAGLE_PACKET_SIZE = 1024 * 1024;  // 1MB;
@@ -382,7 +378,7 @@ class Channel {
 
     bmqp::RejectEventBuilder d_rejectBuilder;
 
-    ItemPool* d_itemPool_p;
+    ItemPool  d_itemPool;
     // Pool of 'Item' objects.
 
     ItemQueue d_buffer;
@@ -505,7 +501,6 @@ class Channel {
 
     /// Create a new object using the specified `allocator`.
     Channel(bdlbb::BlobBufferFactory* blobBufferFactory,
-            ItemPool*                 itemPool,
             const bsl::string&        name,
             bslma::Allocator*         allocator);
 

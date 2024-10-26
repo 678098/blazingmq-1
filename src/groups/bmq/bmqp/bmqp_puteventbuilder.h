@@ -97,19 +97,12 @@ class PutEventBuilder {
 
     bdlbb::BlobBufferFactory* d_bufferFactory_p;
 
-<<<<<<< HEAD
     mutable bsl::shared_ptr<bdlbb::Blob> d_blob_sp;
     // blob being built by this
     // PutEventBuilder.
     // This has been done mutable to be able to
     // skip writing the length until the blob
     // is retrieved.
-=======
-    /// Blob being built by this PutEventBuilder.
-    /// This has been done mutable to be able to
-    /// skip writing the length until the blob is retrieved.
-    mutable bdlbb::Blob d_blob;
->>>>>>> origin/241025_perf_scope_resetters
 
     /// Has `startMessage` been called.
     bool d_msgStarted;

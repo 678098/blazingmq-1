@@ -78,7 +78,7 @@ PutEventBuilder::packMessageInternal(const bdlbb::Blob& appData, int queueId)
             // NOTHING
         }
 
-        ~ResetGuard() { d_putEventBuilder.reset(); }
+        ~ResetGuard() { d_putEventBuilder.resetFields(); }
     };
     const ResetGuard guard(*this);
 
