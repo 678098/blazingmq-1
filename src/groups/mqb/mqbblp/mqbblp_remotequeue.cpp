@@ -748,11 +748,17 @@ void RemoteQueue::onDispatcherEvent(const mqbi::DispatcherEvent& event)
                        << "CONTROL_MSG event not yet implemented";
     } break;
     case mqbi::DispatcherEventType::e_CALLBACK: {
-        const mqbi::DispatcherCallbackEvent* realEvent =
-            event.asCallbackEvent();
-        BSLS_ASSERT_SAFE(realEvent->callback());
-        realEvent->callback()(
-            d_state_p->queue()->dispatcherClientData().processorHandle());
+        if (event.hasCallbackData()) {
+            event.executeCallback(
+                d_state_p->queue()->dispatcherClientData().processorHandle());
+        }
+        else {
+            const mqbi::DispatcherCallbackEvent* realEvent =
+                event.asCallbackEvent();
+            BSLS_ASSERT_SAFE(realEvent->callback());
+            realEvent->callback()(
+                d_state_p->queue()->dispatcherClientData().processorHandle());
+        }
     } break;
     case mqbi::DispatcherEventType::e_PUSH: {
         const mqbi::DispatcherPushEvent* realEvent = event.asPushEvent();
