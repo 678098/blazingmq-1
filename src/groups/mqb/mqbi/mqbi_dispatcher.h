@@ -311,6 +311,16 @@ struct DispatcherEventType {
 bsl::ostream& operator<<(bsl::ostream&             stream,
                          DispatcherEventType::Enum value);
 
+// ===============
+// CallbackFunctor
+// ===============
+
+struct CallbackFunctor {
+    virtual ~CallbackFunctor() = default;
+
+    virtual void operator()(int) const = 0;
+};
+
 // ================
 // class Dispatcher
 // ================
@@ -934,6 +944,10 @@ class DispatcherEvent : public DispatcherDispatcherEvent,
     // DispatcherEvent view interfaces
     // for more specific information.
 
+    char d_callbackFunctor[64];
+
+    bool d_hasCallback;
+
     Dispatcher::ProcessorFunctor d_callback;
     // Callback embedded in this event.
 
@@ -1086,6 +1100,23 @@ class DispatcherEvent : public DispatcherDispatcherEvent,
     DispatcherEvent& setMsgGroupId(const bmqp::Protocol::MsgGroupId& value);
     DispatcherEvent&
     setMessagePropertiesInfo(const bmqp::MessagePropertiesInfo& value);
+
+    template <class CALLBACK_TYPE>
+    char* placeCallback()
+    {
+        BSLS_ASSERT_SAFE(!d_hasCallback);
+        BSLS_ASSERT_SAFE(sizeof(CALLBACK_TYPE) <= 64);
+        d_hasCallback = true;
+        return d_callbackFunctor;
+    }
+
+    inline bool hasCallbackData() const { return d_hasCallback; }
+
+    inline void executeCallback(int processorId) const
+    {
+        (*reinterpret_cast<const CallbackFunctor*>(d_callbackFunctor))(
+            processorId);
+    }
 
     /// Set the corresponding member to the specified `value` and return a
     /// reference offering modifiable access to this object.
@@ -1292,6 +1323,8 @@ inline DispatcherEvent::DispatcherEvent(bslma::Allocator* allocator)
 , d_ackMessage()
 , d_blob_sp(0, allocator)
 , d_options_sp(0, allocator)
+, d_callbackFunctor()
+, d_hasCallback(false)
 , d_callback(bsl::allocator_arg, allocator)
 , d_clusterNode_p(0)
 , d_confirmMessage()
@@ -1622,6 +1655,12 @@ inline void DispatcherEvent::reset()
     d_isOutOfOrder             = false;
     d_genCount                 = 0;
     d_state.reset();
+
+    if (d_hasCallback) {
+        reinterpret_cast<CallbackFunctor*>(d_callbackFunctor)
+            ->~CallbackFunctor();
+        d_hasCallback = false;
+    }
 }
 
 inline DispatcherEventType::Enum DispatcherEvent::type() const

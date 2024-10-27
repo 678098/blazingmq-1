@@ -332,11 +332,16 @@ void LocalQueue::onDispatcherEvent(const mqbi::DispatcherEvent& event)
                     realEvent->queueHandle());
     } break;  // BREAK
     case mqbi::DispatcherEventType::e_CALLBACK: {
-        const mqbi::DispatcherCallbackEvent* realEvent =
-            event.asCallbackEvent();
-        BSLS_ASSERT_SAFE(realEvent->callback());
-        realEvent->callback()(
-            d_state_p->queue()->dispatcherClientData().processorHandle());
+        if (event.hasCallbackData()) {
+            event.executeCallback(0);
+        }
+        else {
+            const mqbi::DispatcherCallbackEvent* realEvent =
+                event.asCallbackEvent();
+            BSLS_ASSERT_SAFE(realEvent->callback());
+            realEvent->callback()(
+                d_state_p->queue()->dispatcherClientData().processorHandle());
+        }
     } break;  // BREAK
     case mqbi::DispatcherEventType::e_ACK: {
         BALL_LOG_INFO << "Skipping dispatcher event [" << event << "] "
