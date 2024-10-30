@@ -271,6 +271,8 @@ static void test1_breathingTest()
     bmqtst::TestHelper::printTestName("BREATHING TEST");
 
     bdlbb::PooledBlobBufferFactory     bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool     blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bmqp::Protocol::SubQueueInfosArray subQueueInfos(s_allocator_p);
 
     const int               queueId = 4321;
@@ -289,7 +291,7 @@ static void test1_breathingTest()
               bsl::strlen(buffer));
 
     // Create PushEventBuilder
-    bmqp::PushEventBuilder peb(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
     ASSERT_EQ(sizeof(bmqp::EventHeader), static_cast<size_t>(peb.eventSize()));
     ASSERT_EQ(sizeof(bmqp::EventHeader),
               static_cast<size_t>(peb.blob().length()));
@@ -385,6 +387,8 @@ static void test2_buildEventBackwardsCompatibility()
     bmqtst::TestHelper::printTestName("BACKWARDS COMPATIBILITY");
 
     bdlbb::PooledBlobBufferFactory     bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool     blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bmqp::Protocol::SubQueueInfosArray subQueueInfos(s_allocator_p);
 
     const int               queueId = 4321;
@@ -403,7 +407,7 @@ static void test2_buildEventBackwardsCompatibility()
               bsl::strlen(buffer));
 
     // Create PushEventBuilder
-    bmqp::PushEventBuilder peb(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
     ASSERT_EQ(sizeof(bmqp::EventHeader), static_cast<size_t>(peb.eventSize()));
     ASSERT_EQ(sizeof(bmqp::EventHeader),
               static_cast<size_t>(peb.blob().length()));
@@ -500,6 +504,8 @@ static void test3_buildEventWithPackedOption()
     bmqtst::TestHelper::printTestName("PACKED OPTION");
 
     bdlbb::PooledBlobBufferFactory     bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool     blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bmqp::Protocol::SubQueueInfosArray subQueueInfos(s_allocator_p);
 
     const int               queueId = 4321;
@@ -514,7 +520,7 @@ static void test3_buildEventWithPackedOption()
               bsl::strlen(buffer));
 
     // Create PushEventBuilder
-    bmqp::PushEventBuilder peb(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
     ASSERT_EQ(sizeof(bmqp::EventHeader), static_cast<size_t>(peb.eventSize()));
     ASSERT_EQ(sizeof(bmqp::EventHeader),
               static_cast<size_t>(peb.blob().length()));
@@ -602,7 +608,9 @@ static void test4_buildEventWithMultipleMessages()
 
     // Create PushEventBuilder
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PushEventBuilder         peb(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
 
     bsl::vector<Data> data(s_allocator_p);
 
@@ -702,6 +710,8 @@ static void test5_buildEventWithPayloadTooBig()
     bmqtst::TestHelper::printTestName("PAYLOAD TOO BIG");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     const bmqt::MessageGUID        guid;
     bdlbb::Blob bigMsgPayload(&bufferFactory, s_allocator_p);
     bmqp::Protocol::SubQueueInfosArray subQueueInfos(s_allocator_p);
@@ -720,7 +730,7 @@ static void test5_buildEventWithPayloadTooBig()
                      bigMsgPayload.length());
 
     // Create PutEventBuilder
-    bmqp::PushEventBuilder peb(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
     ASSERT_EQ(sizeof(bmqp::EventHeader), static_cast<size_t>(peb.eventSize()));
     ASSERT_EQ(sizeof(bmqp::EventHeader),
               static_cast<size_t>(peb.blob().length()));
@@ -812,12 +822,14 @@ static void test6_buildEventWithImplicitPayload()
 // --------------------------------------------------------------------
 {
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     const bmqt::MessageGUID        guid;
     const int                      queueId = 4321;
     const int flags = bmqp::PushHeaderFlags::e_IMPLICIT_PAYLOAD;
 
     // Create PutEventBuilder
-    bmqp::PushEventBuilder         peb(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder         peb(&blobSpPool, s_allocator_p);
     bmqt::EventBuilderResult::Enum rc = peb.packMessage(
         queueId,
         guid,
@@ -888,6 +900,8 @@ static void test7_buildEventOptionTooBig()
     bmqtst::TestHelper::printTestName("OPTION TOO BIG TEST");
 
     bdlbb::PooledBlobBufferFactory     bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool     blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     int                                numSubQueueInfos;
     int                                optionSize;
     bmqp::Protocol::SubQueueInfosArray subQueueInfos(s_allocator_p);
@@ -907,7 +921,7 @@ static void test7_buildEventOptionTooBig()
     generateSubQueueInfos(&subQueueInfos, numSubQueueInfos);
 
     // Create PutEventBuilder
-    bmqp::PushEventBuilder peb(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
 
     // Add option larger than maximum allowed
     bmqt::EventBuilderResult::Enum rc = peb.addSubQueueInfosOption(
@@ -1057,6 +1071,8 @@ static void test8_buildEventTooBig()
     bmqtst::TestHelper::printTestName("EVENT TOO BIG");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     const bmqt::MessageGUID        guid;
     bdlbb::Blob validPayload1(&bufferFactory, s_allocator_p);
     const int   queueId  = 4321;
@@ -1072,7 +1088,7 @@ static void test8_buildEventTooBig()
     bdlbb::BlobUtil::append(&validPayload1, s.c_str(), validLen);
 
     // Create PutEventBuilder
-    bmqp::PushEventBuilder peb(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
 
     // Add message with valid payload size
     bmqt::EventBuilderResult::Enum rc = peb.packMessage(
@@ -1140,6 +1156,8 @@ static void testN1_decodeFromFile()
     const int   k_SIZE            = 128;
     char        buf[k_SIZE]       = {0};
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bdlbb::Blob                    outBlob(&bufferFactory, s_allocator_p);
     bdlbb::Blob                    payloadBlob(&bufferFactory, s_allocator_p);
     bmqu::MemOutStream             os(s_allocator_p);
@@ -1151,7 +1169,7 @@ static void testN1_decodeFromFile()
     bdlbb::BlobUtil::append(&payloadBlob, k_PAYLOAD, k_PAYLOAD_LEN);
 
     // Create PutEventBuilder
-    bmqp::PushEventBuilder obj(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder obj(&blobSpPool, s_allocator_p);
 
     // Pack one msg
     obj.packMessage(payloadBlob,

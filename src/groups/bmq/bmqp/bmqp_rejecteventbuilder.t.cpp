@@ -135,7 +135,9 @@ static void test1_breathingTest()
     bmqtst::TestHelper::printTestName("BREATHING TEST");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(256, s_allocator_p);
-    bmqp::RejectEventBuilder       obj(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::RejectEventBuilder       obj(&blobSpPool, s_allocator_p);
     bsl::vector<Data>              messages(s_allocator_p);
 
     PVV("Verifying accessors");
@@ -159,7 +161,9 @@ static void test2_multiMessage()
     const int k_NUM_MSGS = 1000;
 
     bdlbb::PooledBlobBufferFactory bufferFactory(256, s_allocator_p);
-    bmqp::RejectEventBuilder       obj(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::RejectEventBuilder       obj(&blobSpPool, s_allocator_p);
     bsl::vector<Data>              messages(s_allocator_p);
 
     PVV("Appending messages");
@@ -175,7 +179,9 @@ static void test3_reset()
     // Verifying reset: add three messages, reset, and add another message.
 
     bdlbb::PooledBlobBufferFactory bufferFactory(256, s_allocator_p);
-    bmqp::RejectEventBuilder       obj(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::RejectEventBuilder       obj(&blobSpPool, s_allocator_p);
     bsl::vector<Data>              messages(s_allocator_p);
 
     PV("Appending 3 messages");
@@ -204,7 +210,9 @@ static void test4_capacity()
 
     int                            rc;
     bdlbb::PooledBlobBufferFactory bufferFactory(256, s_allocator_p);
-    bmqp::RejectEventBuilder       obj(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::RejectEventBuilder obj(&blobSpPool, s_allocator_p);
 
     PVV("Computing max message");
     // Compute max message using a different logic than how it is done in
@@ -257,7 +265,9 @@ static void testN1_decodeFromFile()
     bmqtst::TestHelper::printTestName("DECODE FROM FILE");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(256, s_allocator_p);
-    bmqp::RejectEventBuilder       obj(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::RejectEventBuilder       obj(&blobSpPool, s_allocator_p);
     bsl::vector<Data>              messages(s_allocator_p);
     bdlbb::Blob                    outBlob(&bufferFactory, s_allocator_p);
     bmqu::MemOutStream             os(s_allocator_p);

@@ -164,6 +164,8 @@ static void test2_validPushMessagePrint()
     typedef bsl::shared_ptr<bmqimp::Event> EventImplSp;
 
     bdlbb::PooledBlobBufferFactory bufferFactory(4 * 1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bmqa::Event                    event;
 
     EventImplSp& implPtr = reinterpret_cast<EventImplSp&>(event);
@@ -183,7 +185,7 @@ static void test2_validPushMessagePrint()
               bsl::strlen(buffer));
 
     // Create PushEventBuilder
-    bmqp::PushEventBuilder peb(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
     ASSERT_EQ(sizeof(bmqp::EventHeader), static_cast<size_t>(peb.eventSize()));
     ASSERT_EQ(sizeof(bmqp::EventHeader),
               static_cast<size_t>(peb.blob().length()));
@@ -240,6 +242,8 @@ static void test3_messageProperties()
     // allocate memory for an automatically generated CorrelationId.
 
     bdlbb::PooledBlobBufferFactory bufferFactory(4 * 1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
 
     const int               queueId = 4321;
     const bmqt::MessageGUID guid;
@@ -269,7 +273,7 @@ static void test3_messageProperties()
     bdlbb::BlobUtil::append(&payload, buffer, bsl::strlen(buffer));
 
     // Create PushEventBuilder
-    bmqp::PushEventBuilder peb(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
 
     // Add SubQueueInfo option
     bmqt::EventBuilderResult::Enum rc = peb.addSubQueueInfosOption(
@@ -403,6 +407,8 @@ static void test4_subscriptionHandle()
     bsl::shared_ptr<bmqimp::Queue> queueSp = bsl::make_shared<bmqimp::Queue>(
         s_allocator_p);
     bdlbb::PooledBlobBufferFactory bufferFactory(4 * 1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bdlbb::Blob                    payload(&bufferFactory, s_allocator_p);
 
     queueSp->setId(queueId);
@@ -424,7 +430,7 @@ static void test4_subscriptionHandle()
                                                   s_allocator_p);
 
         // Create PushEventBuilder
-        bmqp::PushEventBuilder peb(&bufferFactory, s_allocator_p);
+        bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
         ASSERT_EQ(0, peb.messageCount());
 
         // Add SubQueueInfo option (subscription Id)
@@ -485,7 +491,7 @@ static void test4_subscriptionHandle()
                                                   s_allocator_p);
 
         // Create PushEventBuilder
-        bmqp::PushEventBuilder peb(&bufferFactory, s_allocator_p);
+        bmqp::PushEventBuilder peb(&blobSpPool, s_allocator_p);
         ASSERT_EQ(0, peb.messageCount());
 
         // Add message
@@ -529,7 +535,7 @@ static void test4_subscriptionHandle()
                                                   s_allocator_p);
 
         // Create PutEventBuilder
-        bmqp::PutEventBuilder builder(&bufferFactory, s_allocator_p);
+        bmqp::PutEventBuilder builder(&blobSpPool, s_allocator_p);
         ASSERT_EQ(0, builder.messageCount());
 
         // Add message
@@ -567,7 +573,7 @@ static void test4_subscriptionHandle()
                                                   s_allocator_p);
 
         // Create AckEventBuilder
-        bmqp::AckEventBuilder builder(&bufferFactory, s_allocator_p);
+        bmqp::AckEventBuilder builder(&blobSpPool, s_allocator_p);
         ASSERT_EQ(0, builder.messageCount());
 
         bmqt::EventBuilderResult::Enum rc =

@@ -31,6 +31,7 @@
 #include <mqbu_storagekey.h>
 
 // BMQ
+#include <bmqp_blobpoolutil.h>
 #include <bmqp_ctrlmsg_messages.h>
 #include <bmqp_protocolutil.h>
 #include <bmqt_messageguid.h>
@@ -89,12 +90,6 @@ typedef mqbs::DataStore::AppInfos                      AppInfos;
 typedef mqbs::FileStore::SyncPointOffsetPairs          SyncPointOffsetPairs;
 typedef bsl::pair<mqbs::DataStoreRecordHandle, Record> HandleRecordPair;
 
-typedef bdlcc::SharedObjectPool<
-    bdlbb::Blob,
-    bdlcc::ObjectPoolFunctors::DefaultCreator,
-    bdlcc::ObjectPoolFunctors::RemoveAll<bdlbb::Blob> >
-    BlobSpPool;
-
 // FUNCTIONS
 
 /// Create a new blob at the specified `arena` address, using the specified
@@ -147,7 +142,7 @@ struct Tester {
     bdlbb::PooledBlobBufferFactory         d_bufferFactory;
     bsl::string                            d_clusterLocation;
     bsl::string                            d_clusterArchiveLocation;
-    BlobSpPool                             d_blobSpPool;
+    bmqp::BlobPoolUtil::BlobSpPool         d_blobSpPool;
     mqbcfg::PartitionConfig                d_partitionCfg;
     mqbcfg::ClusterDefinition              d_clusterCfg;
     bsl::vector<mqbcfg::ClusterNode>       d_clusterNodesCfg;
@@ -171,12 +166,8 @@ struct Tester {
     , d_bufferFactory(1024, s_allocator_p)
     , d_clusterLocation(location, s_allocator_p)
     , d_clusterArchiveLocation(location, s_allocator_p)
-    , d_blobSpPool(bdlf::BindUtil::bind(&createBlob,
-                                        &d_bufferFactory,
-                                        bdlf::PlaceHolders::_1,   // arena
-                                        bdlf::PlaceHolders::_2),  // alloc
-                   1024,  // blob pool growth strategy
-                   s_allocator_p)
+    , d_blobSpPool(
+          bmqp::BlobPoolUtil::createBlobPool(&d_bufferFactory, s_allocator_p))
     , d_partitionCfg(s_allocator_p)
     , d_clusterCfg(s_allocator_p)
     , d_clusterNodesCfg(s_allocator_p)

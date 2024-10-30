@@ -165,7 +165,9 @@ static void test2_ackMesageIteratorTest()
     const int k_NUM_MSGS = 5;
 
     bdlbb::PooledBlobBufferFactory bufferFactory(256, s_allocator_p);
-    bmqp::AckEventBuilder          builder(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::AckEventBuilder          builder(&blobSpPool, s_allocator_p);
     bsl::vector<AckData>           messages(s_allocator_p);
 
     PVV("Appending messages");
@@ -222,7 +224,9 @@ static void test3_putMessageIteratorTest()
     const int k_NUM_MSGS = 5;
 
     bdlbb::PooledBlobBufferFactory bufferFactory(256, s_allocator_p);
-    bmqp::PutEventBuilder          builder(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PutEventBuilder          builder(&blobSpPool, s_allocator_p);
     bsl::vector<PutData>           messages(s_allocator_p);
 
     PVV("Appending messages");

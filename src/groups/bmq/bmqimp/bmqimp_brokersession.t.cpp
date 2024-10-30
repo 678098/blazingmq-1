@@ -21,6 +21,7 @@
 #include <bmqimp_manualhosthealthmonitor.h>
 #include <bmqimp_queue.h>
 #include <bmqp_ackeventbuilder.h>
+#include <bmqp_blobpoolutil.h>
 #include <bmqp_confirmeventbuilder.h>
 #include <bmqp_crc32c.h>
 #include <bmqp_ctrlmsg_messages.h>
@@ -396,6 +397,9 @@ struct TestSession BSLS_CPP11_FINAL {
     // Buffer factory provided to the
     // various builders
 
+    /// Blob pool used to provide blobs to event builders.
+    bmqp::BlobPoolUtil::BlobSpPool d_blobSpPool;
+
     bdlmt::EventScheduler& d_scheduler;
     // event scheduler used in the
     // broker session
@@ -448,8 +452,8 @@ struct TestSession BSLS_CPP11_FINAL {
     // ACCESSORS
     bmqimp::BrokerSession&    session();
     bmqio::TestChannel&       channel();
-    bslma::Allocator*         allocator();
-    bdlbb::BlobBufferFactory& blobBufferFactory();
+    bslma::Allocator*               allocator();
+    bmqp::BlobPoolUtil::BlobSpPool& blobSpPool();
 
     // MANIPULATORS
 
@@ -836,11 +840,14 @@ TestSession::TestSession(const bmqt::SessionOptions& sessionOptions,
                          bslma::Allocator*           allocator)
 : d_allocator_p(allocator)
 , d_blobBufferFactory(1024, d_allocator_p)
+, d_blobSpPool(
+      bmqp::BlobPoolUtil::createBlobPool(&d_blobBufferFactory, s_allocator_p))
 , d_scheduler(scheduler)
 , d_testChannel(d_allocator_p)
 , d_eventQueue(bsls::SystemClockType::e_MONOTONIC, d_allocator_p)
 , d_brokerSession(&d_scheduler,
                   &d_blobBufferFactory,
+                  &d_blobSpPool,
                   sessionOptions,
                   useEventHandler
                       ? bdlf::BindUtil::bind(&sessionEventHandler,
@@ -868,11 +875,14 @@ TestSession::TestSession(const bmqt::SessionOptions& sessionOptions,
                          bslma::Allocator*           allocator)
 : d_allocator_p(allocator)
 , d_blobBufferFactory(1024, d_allocator_p)
+, d_blobSpPool(
+      bmqp::BlobPoolUtil::createBlobPool(&d_blobBufferFactory, s_allocator_p))
 , d_scheduler(testClock.d_scheduler)
 , d_testChannel(d_allocator_p)
 , d_eventQueue(bsls::SystemClockType::e_MONOTONIC, d_allocator_p)
 , d_brokerSession(&d_scheduler,
                   &d_blobBufferFactory,
+                  &d_blobSpPool,
                   sessionOptions,
                   useEventHandler
                       ? bdlf::BindUtil::bind(&sessionEventHandler,
@@ -924,9 +934,9 @@ bslma::Allocator* TestSession::allocator()
     return d_allocator_p;
 }
 
-bdlbb::BlobBufferFactory& TestSession::blobBufferFactory()
+bmqp::BlobPoolUtil::BlobSpPool& TestSession::blobSpPool()
 {
-    return d_blobBufferFactory;
+    return d_blobSpPool;
 }
 
 // MANIPULATORS
@@ -2410,7 +2420,9 @@ void TestSession::getOutboundControlMessage(
 void TestSession::sendControlMessage(
     const bmqp_ctrlmsg::ControlMessage& message)
 {
-    bmqp::SchemaEventBuilder builder(&d_blobBufferFactory, d_allocator_p);
+    bmqp::SchemaEventBuilder builder(&d_blobSpPool,
+                                     bmqp::EncodingType::e_BER,
+                                     d_allocator_p);
     int rc = builder.setMessage(message, bmqp::EventType::e_CONTROL);
     ASSERT_EQ(0, rc);
 
@@ -2797,6 +2809,8 @@ static void test1_breathingTest()
     scheduler.start();
 
     bdlbb::PooledBlobBufferFactory blobBufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&blobBufferFactory, s_allocator_p));
     bmqt::SessionOptions           sessionOptions;
     sessionOptions.setNumProcessingThreads(1);
 
@@ -2807,6 +2821,7 @@ static void test1_breathingTest()
     bmqimp::BrokerSession session(
         &scheduler,
         &blobBufferFactory,
+        &blobSpPool,
         sessionOptions,
         emptyEventHandler,  // emptyEventHandler,
         bdlf::BindUtil::bind(&stateCb,
@@ -2859,6 +2874,8 @@ static void test2_basicAccessorsTest()
     const bmqp::QueueId            k_QUEUE_ID(0, 0);
     const bmqt::CorrelationId      corrId(bmqt::CorrelationId::autoValue());
     bdlbb::PooledBlobBufferFactory blobBufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&blobBufferFactory, s_allocator_p));
     bmqt::SessionOptions           sessionOptions;
 
     bdlmt::EventScheduler scheduler(bsls::SystemClockType::e_MONOTONIC,
@@ -2869,6 +2886,7 @@ static void test2_basicAccessorsTest()
 
     bmqimp::BrokerSession obj(&scheduler,
                               &blobBufferFactory,
+                              &blobSpPool,
                               sessionOptions,
                               emptyEventHandler,
                               emptyStateCb,
@@ -2903,6 +2921,8 @@ static void test3_nullChannelTest()
 
     const int                      k_NUM_EVENTS = 3;
     bdlbb::PooledBlobBufferFactory blobBufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&blobBufferFactory, s_allocator_p));
     bmqt::SessionOptions           sessionOptions;
     bsls::AtomicInt                eventCounter(0);
     bsls::AtomicInt                startCounter(0);
@@ -2915,6 +2935,7 @@ static void test3_nullChannelTest()
     bmqimp::BrokerSession obj(
         &scheduler,
         &blobBufferFactory,
+        &blobSpPool,
         sessionOptions,
         bdlf::BindUtil::bind(&channelEventHandler,
                              bdlf::PlaceHolders::_1,
@@ -2995,6 +3016,8 @@ static void test4_createEventTest()
                                     s_allocator_p);
 
     bdlbb::PooledBlobBufferFactory blobBufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&blobBufferFactory, s_allocator_p));
     bmqt::SessionOptions           sessionOptions;
 
     bmqimp::EventQueue::EventHandlerCallback emptyEventHandler;
@@ -3002,6 +3025,7 @@ static void test4_createEventTest()
 
     bmqimp::BrokerSession obj(&scheduler,
                               &blobBufferFactory,
+                              &blobSpPool,
                               sessionOptions,
                               emptyEventHandler,
                               emptyStateCb,
@@ -3017,6 +3041,8 @@ static void queueErrorsTest(bsls::Types::Uint64 queueFlags)
     const bsls::TimeInterval&      timeout = bsls::TimeInterval();
     bsl::shared_ptr<bmqimp::Queue> pQueue;
     bdlbb::PooledBlobBufferFactory blobBufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&blobBufferFactory, s_allocator_p));
     bmqt::SessionOptions           sessionOptions;
     bmqt::QueueOptions             queueOptions;
     bsl::shared_ptr<bmqimp::Event> eventSp;
@@ -3045,6 +3071,7 @@ static void queueErrorsTest(bsls::Types::Uint64 queueFlags)
     bmqimp::BrokerSession session(
         &scheduler,
         &blobBufferFactory,
+        &blobSpPool,
         sessionOptions,
         eventCallback,
         bdlf::BindUtil::bind(&stateCb,
@@ -3245,6 +3272,8 @@ static void test6_setChannelTest()
     const int                      k_NUM_CALLS  = 4;
     const int                      k_NUM_EVENTS = 2 + 3 * (k_NUM_CALLS - 1);
     bdlbb::PooledBlobBufferFactory blobBufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&blobBufferFactory, s_allocator_p));
     bmqt::SessionOptions           sessionOptions;
     bsls::AtomicInt                eventCounter(0);
     bsls::AtomicInt                startCounter(0);
@@ -3258,6 +3287,7 @@ static void test6_setChannelTest()
     bmqimp::BrokerSession obj(
         &scheduler,
         &blobBufferFactory,
+        &blobSpPool,
         sessionOptions,
         bdlf::BindUtil::bind(&channelSetEventHandler,
                              bdlf::PlaceHolders::_1,
@@ -3895,6 +3925,8 @@ static void test11_disconnect()
     bdlmt::EventScheduler scheduler(bsls::SystemClockType::e_MONOTONIC,
                                     s_allocator_p);
     bdlbb::PooledBlobBufferFactory blobBufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&blobBufferFactory, s_allocator_p));
     bdlcc::Deque<bsl::shared_ptr<bmqimp::Event> > eventQueue(
         bsls::SystemClockType::e_MONOTONIC,
         s_allocator_p);
@@ -3917,6 +3949,7 @@ static void test11_disconnect()
         bmqimp::BrokerSession obj(
             &scheduler,
             &blobBufferFactory,
+            &blobSpPool,
             options,
             bdlf::BindUtil::bind(&sessionEventHandler,
                                  &eventQueue,
@@ -3980,7 +4013,9 @@ static void test11_disconnect()
             disconnectMessage.rId().value());
         disconnectResponseMessage.choice().makeDisconnectResponse();
 
-        bmqp::SchemaEventBuilder builder(&blobBufferFactory, s_allocator_p);
+        bmqp::SchemaEventBuilder builder(&blobSpPool,
+                                         bmqp::EncodingType::e_BER,
+                                         s_allocator_p);
         rc = builder.setMessage(disconnectResponseMessage,
                                 bmqp::EventType::e_CONTROL);
         ASSERT_EQ(rc, 0);
@@ -4019,6 +4054,7 @@ static void test11_disconnect()
         bmqimp::BrokerSession obj(
             &scheduler,
             &blobBufferFactory,
+            &blobSpPool,
             options,
             bmqimp::EventQueue::EventHandlerCallback(),
             bdlf::BindUtil::bind(&stateCb,
@@ -4077,7 +4113,9 @@ static void test11_disconnect()
             disconnectMessage.rId().value());
         disconnectResponseMessage.choice().makeDisconnectResponse();
 
-        bmqp::SchemaEventBuilder builder(&blobBufferFactory, s_allocator_p);
+        bmqp::SchemaEventBuilder builder(&blobSpPool,
+                                         bmqp::EncodingType::e_BER,
+                                         s_allocator_p);
         rc = builder.setMessage(disconnectResponseMessage,
                                 bmqp::EventType::e_CONTROL);
         ASSERT_EQ(rc, 0);
@@ -4622,7 +4660,7 @@ static void test21_post_Limit()
 
     PVV_SAFE("Step 4. Create and post PUT message");
     bmqp::Crc32c::initialize();
-    bmqp::PutEventBuilder builder(&obj.blobBufferFactory(), obj.allocator());
+    bmqp::PutEventBuilder builder(&obj.blobSpPool(), obj.allocator());
 
     const char* k_PAYLOAD     = "abcdefghijklmnopqrstuvwxyz";
     const int   k_PAYLOAD_LEN = bsl::strlen(k_PAYLOAD);
@@ -4757,8 +4795,7 @@ static void test22_confirm_Limit()
     obj.channel().setWriteStatus(bmqio::StatusCategory::e_LIMIT);
 
     PVV_SAFE("Step 4. Create the blob and confirm messages");
-    bmqp::ConfirmEventBuilder builder(&obj.blobBufferFactory(),
-                                      obj.allocator());
+    bmqp::ConfirmEventBuilder builder(&obj.blobSpPool(), obj.allocator());
 
     int rc = builder.appendMessage(pQueue->id(),
                                    pQueue->subQueueId(),
@@ -5633,6 +5670,8 @@ static void test25_sessionFsmTable()
                                                          s_allocator_p);
 
     bdlbb::PooledBlobBufferFactory blobBufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&blobBufferFactory, s_allocator_p));
     bmqt::SessionOptions           sessionOptions;
     sessionOptions.setNumProcessingThreads(1).setHostHealthMonitor(monitor_sp);
 
@@ -5647,6 +5686,7 @@ static void test25_sessionFsmTable()
     bmqimp::BrokerSession obj(
         &scheduler,
         &blobBufferFactory,
+        &blobSpPool,
         sessionOptions,
         emptyEventHandler,  // emptyEventHandler,
         bdlf::BindUtil::bind(&transitionCb,
@@ -6549,7 +6589,9 @@ static void test33_queueNackTest()
     bmqt::SessionOptions           sessionOptions;
     bmqt::QueueOptions             queueOptions;
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PutEventBuilder          eventBuilder(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PutEventBuilder          eventBuilder(&blobSpPool, s_allocator_p);
     const bmqt::CorrelationId      corrId(243);
     bmqt::MessageGUID     guid = bmqp::MessageGUIDGenerator::testGUID();
     bdlmt::EventScheduler scheduler(bsls::SystemClockType::e_MONOTONIC,
@@ -7617,6 +7659,8 @@ static void test40_syncCalledFromEventHandler()
     const bsls::TimeInterval&      timeout = bsls::TimeInterval();
     bsl::shared_ptr<bmqimp::Queue> pQueue;
     bdlbb::PooledBlobBufferFactory blobBufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&blobBufferFactory, s_allocator_p));
     bmqt::SessionOptions           sessionOptions;
     bmqt::QueueOptions             queueOptions;
     bsl::shared_ptr<bmqimp::Event> eventSp;
@@ -7639,6 +7683,7 @@ static void test40_syncCalledFromEventHandler()
     bmqimp::BrokerSession session(
         &scheduler,
         &blobBufferFactory,
+        &blobSpPool,
         sessionOptions,
         bdlf::BindUtil::bind(&eventHandlerSyncCall,
                              &eventSp,
@@ -8883,9 +8928,11 @@ static void test50_putRetransmittingTest()
     bmqt::SessionOptions           sessionOptions;
     bmqt::QueueOptions             queueOptions;
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PutEventBuilder     putEventBuilder(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PutEventBuilder     putEventBuilder(&blobSpPool, s_allocator_p);
     bmqp::PutMessageIterator  putIter(&bufferFactory, s_allocator_p);
-    bmqp::AckEventBuilder     ackEventBuilder(&bufferFactory, s_allocator_p);
+    bmqp::AckEventBuilder     ackEventBuilder(&blobSpPool, s_allocator_p);
     bmqp::Event               rawEvent(s_allocator_p);
     const bmqt::CorrelationId corrIdFirst(243);
     const bmqt::CorrelationId corrIdSecond(987);
@@ -9165,7 +9212,9 @@ static void test51_putRetransmittingNoAckTest()
     bmqt::SessionOptions           sessionOptions;
     bmqt::QueueOptions             queueOptions;
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PutEventBuilder     putEventBuilder(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PutEventBuilder     putEventBuilder(&blobSpPool, s_allocator_p);
     bmqp::PutMessageIterator  putIter(&bufferFactory, s_allocator_p);
     bmqp::Event               rawEvent(s_allocator_p);
     const bmqt::CorrelationId corrId(243);

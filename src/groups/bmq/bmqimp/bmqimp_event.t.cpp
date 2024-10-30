@@ -751,6 +751,8 @@ static void test6_comparisonOperatorTest()
     bmqtst::TestHelper::printTestName("COMPARISON OPERATORS");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bmqimp::Event                  obj1(&bufferFactory, s_allocator_p);
     bmqimp::Event                  obj2(&bufferFactory, s_allocator_p);
     bmqt::SessionEventType::Enum   sessionType =
@@ -791,8 +793,8 @@ static void test6_comparisonOperatorTest()
     PV("Configure as MesageEvent");
     bmqimp::Event obj3(&bufferFactory, s_allocator_p);
     bmqimp::Event obj4(&bufferFactory, s_allocator_p);
-    obj3.configureAsMessageEvent(&bufferFactory);
-    obj4.configureAsMessageEvent(&bufferFactory);
+    obj3.configureAsMessageEvent(&blobSpPool);
+    obj4.configureAsMessageEvent(&blobSpPool);
 
     // NOTE: Message event can not be equal. Is it expected?
     ASSERT(obj3 != obj4);
@@ -1076,6 +1078,8 @@ static void test8_putEventBuilder()
     bmqp::Crc32c::initialize();
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
 #ifdef BMQ_ENABLE_MSG_GROUPID
     const bmqp::Protocol::MsgGroupId k_MSG_GROUP_ID("gid:0", s_allocator_p);
 #endif
@@ -1102,7 +1106,7 @@ static void test8_putEventBuilder()
 
     // Create PutEventBuilder
     bmqimp::Event obj(&bufferFactory, s_allocator_p);
-    obj.configureAsMessageEvent(&bufferFactory);
+    obj.configureAsMessageEvent(&blobSpPool);
     bmqp::PutEventBuilder& builder = *(obj.putEventBuilder());
 
     builder.startMessage();
@@ -1512,12 +1516,14 @@ static void test12_upgradeDowngradeMessageEvent()
     bmqtst::TestHelper::printTestName("UPGRADE DOWNGRADE MESSAGE EVENT TEST");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
 
     // 1. Create session event
     bmqimp::Event obj(&bufferFactory, s_allocator_p);
 
     // 2. Configure event as message event in WRITE mode.
-    obj.configureAsMessageEvent(&bufferFactory);
+    obj.configureAsMessageEvent(&blobSpPool);
     ASSERT_EQ(bmqimp::Event::MessageEventMode::e_WRITE,
               obj.messageEventMode());
 

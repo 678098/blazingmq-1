@@ -839,10 +839,12 @@ static void test11_parseMessageProperties()
     bmqtst::TestHelper::printTestName("TEST PARSING");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bmqp::MessageProperties        in(s_allocator_p);
     encode(&in);
     const int             queueId = 4;
-    bmqp::PutEventBuilder peb(&bufferFactory, s_allocator_p);
+    bmqp::PutEventBuilder peb(&blobSpPool, s_allocator_p);
     bdlbb::Blob           payload(&bufferFactory, s_allocator_p);
 
     populateBlob(&payload, 2 * bmqp::Protocol::k_COMPRESSION_MIN_APPDATA_SIZE);

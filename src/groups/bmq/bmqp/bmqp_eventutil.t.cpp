@@ -249,7 +249,9 @@ static void test1_breathingTest()
     bmqtst::TestHelper::printTestName("BREATHING TEST");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PushEventBuilder pushEventBuilder(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PushEventBuilder pushEventBuilder(&blobSpPool, s_allocator_p);
     bsl::vector<Data>      data(s_allocator_p);
     int                    payloadLength    = 0;
     int                    numSubQueueInfos = 0;
@@ -310,6 +312,7 @@ static void test1_breathingTest()
     rc = bmqp::EventUtil::flattenPushEvent(&eventInfos,
                                            event,
                                            &bufferFactory,
+                                           &blobSpPool,
                                            s_allocator_p);
     ASSERT_EQ(rc, 0);
     ASSERT_EQ(eventInfos.size(), 1u);
@@ -435,7 +438,9 @@ static void test2_flattenExplodesEvent()
     bmqtst::TestHelper::printTestName("FLATTEN EXPLODES EVENT");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PushEventBuilder pushEventBuilder(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PushEventBuilder pushEventBuilder(&blobSpPool, s_allocator_p);
     bsl::vector<Data>      data(s_allocator_p);
     int                    payloadLength  = 0;
     int                    numSubQueueIds = 0;
@@ -469,6 +474,7 @@ static void test2_flattenExplodesEvent()
     rc = bmqp::EventUtil::flattenPushEvent(&eventInfos,
                                            event,
                                            &bufferFactory,
+                                           &blobSpPool,
                                            s_allocator_p);
     ASSERT_EQ(rc, 0);
     ASSERT_EQ(eventInfos.size(), 2u);
@@ -642,9 +648,11 @@ static void test3_flattenWithMessageProperties()
     bmqtst::TestHelper::printTestName("FLATTEN WITH MESSAGE PROPERTIES");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bmqp::MessageProperties        msgProperties(s_allocator_p);
     bdlbb::Blob                    appData(s_allocator_p);
-    bmqp::PushEventBuilder pushEventBuilder(&bufferFactory, s_allocator_p);
+    bmqp::PushEventBuilder pushEventBuilder(&blobSpPool, s_allocator_p);
     bmqt::EventBuilderResult::Enum result;
     int                            payloadLength    = 0;
     int                            numSubQueueInfos = 0;
@@ -721,6 +729,7 @@ static void test3_flattenWithMessageProperties()
     rc = bmqp::EventUtil::flattenPushEvent(&eventInfos,
                                            event,
                                            &bufferFactory,
+                                           &blobSpPool,
                                            s_allocator_p);
     ASSERT_EQ(rc, 0);
     ASSERT_EQ(eventInfos.size(), 1U);

@@ -214,6 +214,8 @@ static void test1_breathingTest()
     bmqtst::TestHelper::printTestName("BREATHING TEST");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
 #ifdef BMQ_ENABLE_MSG_GROUPID
     const bmqp::Protocol::MsgGroupId k_MSG_GROUP_ID("gid:0", s_allocator_p);
 #endif
@@ -252,7 +254,7 @@ static void test1_breathingTest()
         BSLS_ASSERT_OPT(k_NUM_PROPERTIES == msgProps.numProperties());
 
         // Create PutEventBuilder
-        bmqp::PutEventBuilder obj(&bufferFactory, s_allocator_p);
+        bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
 
         ASSERT_EQ(obj.crc32c(), 0U);
 
@@ -476,7 +478,7 @@ static void test1_breathingTest()
         BSLS_ASSERT_OPT(k_NUM_PROPERTIES == msgProps.numProperties());
 
         // Create PutEventBuilder
-        bmqp::PutEventBuilder obj(&bufferFactory, s_allocator_p);
+        bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
 
         ASSERT_EQ(obj.crc32c(), 0U);
 
@@ -706,7 +708,7 @@ static void test1_breathingTest()
         BSLS_ASSERT_OPT(k_NUM_PROPERTIES == msgProps.numProperties());
 
         // Create PutEventBuilder
-        bmqp::PutEventBuilder obj(&bufferFactory, s_allocator_p);
+        bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
 
         ASSERT_EQ(obj.crc32c(), 0U);
 
@@ -951,7 +953,7 @@ static void test1_breathingTest()
         BSLS_ASSERT_OPT(k_NUM_PROPERTIES == msgProps.numProperties());
 
         // Create PutEventBuilder
-        bmqp::PutEventBuilder obj(&bufferFactory, s_allocator_p);
+        bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
 
         ASSERT_EQ(obj.crc32c(), 0U);
 
@@ -1184,7 +1186,7 @@ static void test1_breathingTest()
         BSLS_ASSERT_OPT(k_NUM_PROPERTIES == msgProps.numProperties());
 
         // Create PutEventBuilder
-        bmqp::PutEventBuilder obj(&bufferFactory, s_allocator_p);
+        bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
 
         ASSERT_EQ(obj.crc32c(), 0U);
 
@@ -1399,7 +1401,7 @@ static void test1_breathingTest()
         PVV("DO NOT USE COMPRESSION FOR RELAYED PUT MESSAGES");
 
         // Create PutEventBuilder
-        bmqp::PutEventBuilder obj(&bufferFactory, s_allocator_p);
+        bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
         ASSERT_EQ(obj.crc32c(), 0U);
         bmqu::MemOutStream error(s_allocator_p);
 
@@ -1647,7 +1649,9 @@ static void test2_manipulators_one()
 
     // Create PutEventBuilder
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PutEventBuilder          obj(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
 
     // Properties.
     bmqp::MessageProperties msgProps(s_allocator_p);
@@ -1791,6 +1795,8 @@ static void test3_eventTooBig()
     bmqtst::TestHelper::printTestName("EVENT TOO BIG");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bdlbb::Blob bigMsgPayload(&bufferFactory, s_allocator_p);
 #ifdef BMQ_ENABLE_MSG_GROUPID
     bmqp::Protocol::MsgGroupId k_MSG_GROUP_ID("gid:0", s_allocator_p);
@@ -1806,7 +1812,7 @@ static void test3_eventTooBig()
                 bigMsgPayload.length());
 
     // Create PutEventBuilder
-    bmqp::PutEventBuilder obj(&bufferFactory, s_allocator_p);
+    bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
 
     obj.startMessage();
 #ifdef BMQ_ENABLE_MSG_GROUPID
@@ -1895,7 +1901,9 @@ static void test4_manipulators_two()
 
     // Create PutEventBuilder
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PutEventBuilder          obj(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PutEventBuilder          obj(&blobSpPool, s_allocator_p);
     bsl::vector<Data>              data(s_allocator_p);
     const size_t                   k_NUM_MSGS = 1000;
 
@@ -1971,7 +1979,9 @@ static void test5_putEventWithZeroLengthMessage()
 
     // Create PutEventBuilder
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PutEventBuilder          obj(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PutEventBuilder          obj(&blobSpPool, s_allocator_p);
     bsl::vector<Data>              data(s_allocator_p);
 
     bmqt::EventBuilderResult::Enum rc = appendMessage(
@@ -2018,6 +2028,8 @@ static void test6_emptyBuilder()
     bmqtst::TestHelper::printTestName("EMPTY BUILDER");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
 #ifdef BMQ_ENABLE_MSG_GROUPID
     bmqp::Protocol::MsgGroupId k_MSG_GROUP_ID("gid:0", s_allocator_p);
 #endif
@@ -2034,7 +2046,7 @@ static void test6_emptyBuilder()
 
     const char* k_PAYLOAD = "abcdefghijklmnopqrstuvwxyz";
 
-    bmqp::PutEventBuilder obj(&bufferFactory, s_allocator_p);
+    bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
 
     ASSERT_EQ(obj.unpackedMessageSize(), 0);
     ASSERT_SAFE_FAIL(obj.setFlags(0));
@@ -2103,6 +2115,8 @@ static void test7_multiplePackMessage()
     bmqtst::TestHelper::printTestName("TEST MULTIPLE CALLS TO PACK MESSAGE");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
 #ifdef BMQ_ENABLE_MSG_GROUPID
     const bmqp::Protocol::MsgGroupId k_MSG_GROUP_ID("gid:0", s_allocator_p);
 #endif
@@ -2137,7 +2151,7 @@ static void test7_multiplePackMessage()
     ASSERT_EQ(k_NUM_PROPERTIES, msgProps.numProperties());
 
     // Create PutEventBuilder
-    bmqp::PutEventBuilder obj(&bufferFactory, s_allocator_p);
+    bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
 
     ASSERT_EQ(obj.crc32c(), 0U);
 
@@ -2340,6 +2354,8 @@ static void testN1_decodeFromFile()
     bmqtst::TestHelper::printTestName("DECODE FROM FILE");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     bdlbb::Blob                    outBlob(&bufferFactory, s_allocator_p);
     bdlbb::Blob                    payloadBlob(s_allocator_p);
     bmqu::MemOutStream             os(s_allocator_p);
@@ -2379,7 +2395,7 @@ static void testN1_decodeFromFile()
         bmqp::PutHeaderFlags::e_MESSAGE_PROPERTIES);
 
     // Create PutEventBuilder
-    bmqp::PutEventBuilder obj(&bufferFactory, s_allocator_p);
+    bmqp::PutEventBuilder obj(&blobSpPool, s_allocator_p);
 
     obj.startMessage();
 

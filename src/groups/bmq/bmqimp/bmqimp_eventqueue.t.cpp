@@ -256,7 +256,9 @@ static void test2_capacityTest()
     const int k_INITIAL_CAPACITY = 3;
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PutEventBuilder          builder(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PutEventBuilder          builder(&blobSpPool, s_allocator_p);
     bmqimp::EventQueue::EventPool  eventPool(
         bdlf::BindUtil::bind(&poolCreateEvent,
                              bdlf::PlaceHolders::_1,  // address
@@ -547,7 +549,9 @@ static void test6_workingStatsTest()
     bmqu::MemOutStream             out(s_allocator_p);
     bmqu::MemOutStream             expected(s_allocator_p);
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PutEventBuilder          builder(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PutEventBuilder          builder(&blobSpPool, s_allocator_p);
     bmqimp::EventQueue::EventPool  eventPool(
         bdlf::BindUtil::bind(&poolCreateEvent,
                              bdlf::PlaceHolders::_1,  // address

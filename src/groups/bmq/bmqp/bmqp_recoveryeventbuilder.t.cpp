@@ -113,6 +113,8 @@ static void test1_breathingTest()
     bmqtst::TestHelper::printTestName("BREATHING TEST");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
     const char*                    CHUNK = "abcdefghijklmnopqrstuvwx";
 
     // Note that chunk must be word aligned per RecoveryEventBuilder's
@@ -124,7 +126,7 @@ static void test1_breathingTest()
 
     // Create RecoveryEventBuilder.
 
-    bmqp::RecoveryEventBuilder reb(&bufferFactory, s_allocator_p);
+    bmqp::RecoveryEventBuilder reb(&blobSpPool, s_allocator_p);
     ASSERT_EQ(sizeof(bmqp::EventHeader), static_cast<size_t>(reb.eventSize()));
     ASSERT_EQ(reb.messageCount(), 0);
 
@@ -201,7 +203,9 @@ static void test2_multipleMessagesTest()
     bmqtst::TestHelper::printTestName("MULTIPLE MESSAGES TEST");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::RecoveryEventBuilder     reb(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::RecoveryEventBuilder     reb(&blobSpPool, s_allocator_p);
     bsl::vector<Data>              data(s_allocator_p);
     const size_t                   NUM_MSGS = 1000;
     data.reserve(NUM_MSGS);
@@ -278,7 +282,9 @@ static void test3_eventTooBigTest()
     bmqtst::TestHelper::printTestName("EVENT TOO BIG TEST");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::RecoveryEventBuilder     reb(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::RecoveryEventBuilder     reb(&blobSpPool, s_allocator_p);
     bsl::string                    bigChunk(s_allocator_p);
     bigChunk.resize(bmqp::RecoveryHeader::k_MAX_PAYLOAD_SIZE_SOFT + 4, 'a');
     // Note that chunk's size must be word aligned.
@@ -367,7 +373,9 @@ static void test4_emptyPayloadTest()
     bmqtst::TestHelper::printTestName("EMPTY PAYLOAD TEST");
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::RecoveryEventBuilder     reb(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::RecoveryEventBuilder reb(&blobSpPool, s_allocator_p);
 
     bsl::shared_ptr<char> chunkBufferSp(
         reinterpret_cast<char*>(&reb),  // dummy

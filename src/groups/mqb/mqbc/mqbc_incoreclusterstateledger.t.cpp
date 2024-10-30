@@ -288,6 +288,7 @@ struct Tester {
                 d_cluster_mp->_clusterData(),
                 &d_cluster_mp->_state(),
                 d_cluster_mp->_bufferFactory(),
+                d_cluster_mp->_blobSpPool(),
                 s_allocator_p),
             s_allocator_p);
         d_clusterStateLedger_mp->setCommitCb(

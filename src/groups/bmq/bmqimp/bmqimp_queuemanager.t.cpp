@@ -574,7 +574,9 @@ static void test9_pushStatsTest()
     const bmqt::MessageGUID   k_GUID;
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PushEventBuilder         peb(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PushEventBuilder         peb(&blobSpPool, s_allocator_p);
     bdlbb::Blob                    payload(&bufferFactory, s_allocator_p);
     bmqt::Uri                      uri(k_URI, s_allocator_p);
     bmqimp::QueueManager::QueueSp  queueSp;
@@ -682,7 +684,9 @@ static void test10_putStatsTest()
     const bmqt::MessageGUID   k_GUID;
 
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
-    bmqp::PutEventBuilder          peb(&bufferFactory, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
+    bmqp::PutEventBuilder          peb(&blobSpPool, s_allocator_p);
     bmqt::Uri                      uri(k_URI, s_allocator_p);
     bmqimp::QueueManager::QueueSp  queueSp;
     bmqp::QueueId                  queueId(bmqimp::Queue::k_INVALID_QUEUE_ID);

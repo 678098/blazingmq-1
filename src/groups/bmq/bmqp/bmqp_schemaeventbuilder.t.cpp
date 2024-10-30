@@ -56,6 +56,8 @@ static void test1_breathingTest()
 
     int                            rc;
     bdlbb::PooledBlobBufferFactory bufferFactory(1024, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
 
     struct Test {
         int                      d_line;
@@ -72,9 +74,9 @@ static void test1_breathingTest()
         const Test& test = k_DATA[idx];
         PVV(test.d_line << ": Testing " << test.d_encodingType << "encoding");
 
-        bmqp::SchemaEventBuilder obj(&bufferFactory,
-                                     s_allocator_p,
-                                     test.d_encodingType);
+        bmqp::SchemaEventBuilder obj(&blobSpPool,
+                                     test.d_encodingType,
+                                     s_allocator_p);
 
         PVV(test.d_line << ": Verifying accessors");
         ASSERT_EQ(obj.blob().length(), 0);
@@ -275,6 +277,8 @@ static void testN1_decodeFromFile()
 
     const int                      k_SIZE = 512;
     bdlbb::PooledBlobBufferFactory bufferFactory(k_SIZE, s_allocator_p);
+    bmqp::BlobPoolUtil::BlobSpPool blobSpPool(
+        bmqp::BlobPoolUtil::createBlobPool(&bufferFactory, s_allocator_p));
 
     struct Test {
         int                      d_line;
@@ -291,9 +295,9 @@ static void testN1_decodeFromFile()
         const Test& test = k_DATA[idx];
         PVV(test.d_line << ": Testing " << test.d_encodingType << " encoding");
 
-        bmqp::SchemaEventBuilder obj(&bufferFactory,
-                                     s_allocator_p,
-                                     test.d_encodingType);
+        bmqp::SchemaEventBuilder obj(&blobSpPool,
+                                     test.d_encodingType,
+                                     s_allocator_p);
 
         PVV(test.d_line << ": Status message");
         {
