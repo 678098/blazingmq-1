@@ -1052,10 +1052,16 @@ ClusterProxy::ClusterProxy(
     const mqbi::ClusterResources&         resources,
     bslma::Allocator*                     allocator)
 : d_allocator_p(allocator)
+, d_dispatcherClientData()
+, d_resources(
+      dispatcher->bookResources(this, mqbi::DispatcherClientType::e_CLUSTER))
 , d_isStarted(false)
 , d_isStopping(false)
 , d_clusterData(name,
-                resources,
+                &d_resources->d_blobBufferFactory,
+                &d_resources->d_blobSpPool,
+                resources.scheduler(),
+                &d_dispatcherClientData,
                 mqbcfg::ClusterDefinition(allocator),
                 clusterProxyConfig,
                 netCluster,

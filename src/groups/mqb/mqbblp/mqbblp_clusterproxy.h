@@ -200,6 +200,12 @@ class ClusterProxy : public mqbc::ClusterStateObserver,
     bslma::Allocator* d_allocator_p;
     // Allocator to use
 
+    /// Dispatcher client data associated to this cluster.
+    mqbi::DispatcherClientData d_dispatcherClientData;
+
+    /// Resources associated with the thread used by this dispatcher client.
+    bsl::shared_ptr<mqbi::DispatcherThreadResources> d_resources;
+
     bool d_isStarted;
     // Flag to indicate start/stop
     // status. This flag is used only
@@ -759,12 +765,12 @@ inline mqbnet::Cluster& ClusterProxy::netCluster()
 //   (virtual: mqbi::DispatcherClient)
 inline mqbi::Dispatcher* ClusterProxy::dispatcher()
 {
-    return d_clusterData.dispatcherClientData().dispatcher();
+    return d_dispatcherClientData.dispatcher();
 }
 
 inline mqbi::DispatcherClientData& ClusterProxy::dispatcherClientData()
 {
-    return d_clusterData.dispatcherClientData();
+    return d_dispatcherClientData;
 }
 
 // ACCESSORS
@@ -814,13 +820,13 @@ ClusterProxy::clusterProxyConfig() const
 //   (virtual: mqbi::DispatcherClient)
 inline const mqbi::Dispatcher* ClusterProxy::dispatcher() const
 {
-    return d_clusterData.dispatcherClientData().dispatcher();
+    return d_dispatcherClientData.dispatcher();
 }
 
 inline const mqbi::DispatcherClientData&
 ClusterProxy::dispatcherClientData() const
 {
-    return d_clusterData.dispatcherClientData();
+    return d_dispatcherClientData;
 }
 
 inline const bsl::string& ClusterProxy::description() const

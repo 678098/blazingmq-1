@@ -451,15 +451,26 @@ Queue::Queue(const bmqt::Uri&                          uri,
              unsigned int                              id,
              const mqbu::StorageKey&                   key,
              int                                       partitionId,
+             mqbi::Dispatcher*                         dispatcher,
              mqbi::Domain*                             domain,
              mqbi::StorageManager*                     storageManager,
-             const mqbi::ClusterResources&             resources,
+             bdlmt::EventScheduler*                    scheduler_p,
              bdlmt::FixedThreadPool*                   threadPool,
              const bmqp_ctrlmsg::RoutingConfiguration& routingCfg,
              bslma::Allocator*                         allocator)
 : d_allocator_p(allocator)
+, d_dispatcher_p(dispatcher)
+, d_dispatcherClientData()
 , d_schemaLearner(allocator)
-, d_state(this, uri, id, key, partitionId, domain, resources, allocator)
+, d_state(this,
+          uri,
+          id,
+          key,
+          partitionId,
+          scheduler_p,
+          &d_dispatcherClientData,
+          domain,
+          allocator)
 , d_localQueue_mp(0)
 , d_remoteQueue_mp(0)
 {

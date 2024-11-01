@@ -110,6 +110,12 @@ class Queue BSLS_CPP11_FINAL : public mqbi::Queue {
   private:
     // DATA
     bslma::Allocator*              d_allocator_p;
+
+    mqbi::Dispatcher* d_dispatcher_p;
+
+    /// Dispatcher client data associated to this queue.
+    mqbi::DispatcherClientData d_dispatcherClientData;
+
     mutable bmqp::SchemaLearner    d_schemaLearner;  // must precede d_state
     QueueState                     d_state;
     bslma::ManagedPtr<LocalQueue>  d_localQueue_mp;
@@ -164,9 +170,10 @@ class Queue BSLS_CPP11_FINAL : public mqbi::Queue {
           unsigned int                              id,
           const mqbu::StorageKey&                   key,
           int                                       partitionId,
+          mqbi::Dispatcher*                         dispatcher,
           mqbi::Domain*                             domain,
           mqbi::StorageManager*                     storageManager,
-          const mqbi::ClusterResources&             resources,
+          bdlmt::EventScheduler*                    scheduler_p,
           bdlmt::FixedThreadPool*                   threadPool,
           const bmqp_ctrlmsg::RoutingConfiguration& routingCfg,
           bslma::Allocator*                         allocator);
@@ -565,22 +572,22 @@ inline const bsl::string& Queue::description() const
 
 inline mqbi::DispatcherClientData& Queue::dispatcherClientData()
 {
-    return d_state.dispatcherClientData();
+    return d_dispatcherClientData;
 }
 
 inline const mqbi::DispatcherClientData& Queue::dispatcherClientData() const
 {
-    return d_state.dispatcherClientData();
+    return d_dispatcherClientData;
 }
 
 inline mqbi::Dispatcher* Queue::dispatcher()
 {
-    return d_state.domain()->cluster()->dispatcher();
+    return d_dispatcher_p;
 }
 
 inline const mqbi::Dispatcher* Queue::dispatcher() const
 {
-    return d_state.domain()->cluster()->dispatcher();
+    return d_dispatcher_p;
 }
 
 inline bmqp::SchemaLearner& Queue::schemaLearner() const

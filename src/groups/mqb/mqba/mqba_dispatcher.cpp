@@ -222,14 +222,21 @@ void Dispatcher_ClientExecutor::dispatch(const bsl::function<void()>& f) const
 Dispatcher::DispatcherContext::DispatcherContext(
     const mqbcfg::DispatcherProcessorConfig& config,
     bslma::Allocator*                        allocator)
-: d_threadPool_mp()
+: d_allocators(allocator)
+, d_threadResources(allocator)
+, d_threadPool_mp()
 , d_processorPool_mp()
 , d_loadBalancer(config.numProcessors(), allocator)
 , d_flushList(config.numProcessors(),
               DispatcherClientPtrVector(allocator),
               allocator)
 {
-    // NOTHING
+    d_threadResources.resize(config.numProcessors());
+    for (int i = 0; i < config.numProcessors(); i++) {
+        bslma::Allocator* alloc = d_allocators.get("thread" +
+                                                   bsl::to_string(i));
+        d_threadResources[i].createInplace(alloc, alloc);
+    }
 }
 
 // ----------------
@@ -251,9 +258,11 @@ int Dispatcher::startContext(bsl::ostream&                    errorDescription,
 
     DispatcherContextSp& context = d_contexts[type];
 
-    context.reset(new (*d_allocator_p)
-                      DispatcherContext(config, d_allocator_p),
-                  d_allocator_p);
+    context.reset(
+        new (*d_allocator_p) DispatcherContext(
+            config,
+            d_allocators.get(mqbi::DispatcherClientType::toAscii(type))),
+        d_allocator_p);
 
     // Create and start the threadPool
     context->d_threadPool_mp.load(
@@ -303,8 +312,14 @@ int Dispatcher::startContext(bsl::ostream&                    errorDescription,
 
     processorPoolConfig.setGrowBy(64 * 1024);
 
+    // We rely on the fact that `d_allocators` field is declared first and will
+    // be destructed the last, so we can use it to init other fields of
+    // the built `context`
+    bmqma::CountingAllocatorStore& contextAlloc = context->d_allocators;
+
     context->d_processorPool_mp.load(
-        new (*d_allocator_p) ProcessorPool(processorPoolConfig, d_allocator_p),
+        new (*d_allocator_p) ProcessorPool(processorPoolConfig,
+                                           contextAlloc.get("ProcessorPool")),
         d_allocator_p);
 
     rc = context->d_processorPool_mp->start();
@@ -450,7 +465,8 @@ void Dispatcher::onNewClient(mqbi::DispatcherClientType::Enum type,
 Dispatcher::Dispatcher(const mqbcfg::DispatcherConfig& config,
                        bdlmt::EventScheduler*          scheduler,
                        bslma::Allocator*               allocator)
-: d_allocator_p(allocator)
+: d_allocators(allocator)
+, d_allocator_p(allocator)
 , d_isStarted(false)
 , d_config(config)
 , d_scheduler_p(scheduler)
@@ -558,11 +574,25 @@ void Dispatcher::stop()
 #undef STOP_AND_CLEAR
 }
 
-mqbi::Dispatcher::ProcessorHandle
-Dispatcher::registerClient(mqbi::DispatcherClient*           client,
-                           mqbi::DispatcherClientType::Enum  type,
-                           mqbi::Dispatcher::ProcessorHandle handle)
+bsl::shared_ptr<mqbi::DispatcherThreadResources>
+Dispatcher::bookResources(mqbi::DispatcherClient*           client,
+                          mqbi::DispatcherClientType::Enum  type,
+                          mqbi::Dispatcher::ProcessorHandle handle)
 {
+    if (client->dispatcherClientData().clientType() !=
+        mqbi::DispatcherClientType::e_UNDEFINED) {
+        // Set `clientType` means that we already assigned type via
+        // `bookResources` or `registerClient`, so we can just returned the
+        // assigned resources.
+        BSLS_ASSERT_SAFE(client->dispatcherClientData().clientType() == type);
+
+        DispatcherContext& context = *(d_contexts[type]);
+        const int processor = client->dispatcherClientData().processorHandle();
+        BSLS_ASSERT_SAFE(mqbi::Dispatcher::k_INVALID_PROCESSOR_HANDLE !=
+                         processor);
+        return context.d_threadResources.at(processor);
+    }
+
     switch (type) {
     case mqbi::DispatcherClientType::e_SESSION:
     case mqbi::DispatcherClientType::e_QUEUE:
@@ -580,6 +610,44 @@ Dispatcher::registerClient(mqbi::DispatcherClient*           client,
             .setDispatcher(this)
             .setClientType(type)
             .setProcessorHandle(processor);
+
+        BALL_LOG_DEBUG << "Booked resources for a new dispatcher client "
+                       << "[Client: " << client->description()
+                       << ", type: " << type << ", processor: " << processor
+                       << "]";
+
+        return context.d_threadResources.at(processor);  // RETURN
+    }                                                    // break;
+    case mqbi::DispatcherClientType::e_UNDEFINED:
+    case mqbi::DispatcherClientType::e_ALL:
+    default: {
+        BALL_LOG_ERROR << "#DISPATCHER_INVALID_CLIENT "
+                       << "Booking resources for dispatcher client of invalid "
+                       << "type [type: " << type << ", client: '"
+                       << client->description() << "']";
+        BSLS_ASSERT_OPT(false && "Invalid client type");
+    }
+    }
+
+    // Not reachable
+    return bsl::shared_ptr<mqbi::DispatcherThreadResources>();
+}
+
+mqbi::Dispatcher::ProcessorHandle
+Dispatcher::registerClient(mqbi::DispatcherClient*           client,
+                           mqbi::DispatcherClientType::Enum  type,
+                           mqbi::Dispatcher::ProcessorHandle handle)
+{
+    switch (type) {
+    case mqbi::DispatcherClientType::e_SESSION:
+    case mqbi::DispatcherClientType::e_QUEUE:
+    case mqbi::DispatcherClientType::e_CLUSTER: {
+        DispatcherContext& context = *(d_contexts[type]);
+
+        bookResources(client, type, handle);
+        const int processor = client->dispatcherClientData().processorHandle();
+        BSLS_ASSERT_SAFE(processor !=
+                         mqbi::Dispatcher::k_INVALID_PROCESSOR_HANDLE);
 
         BALL_LOG_DEBUG << "Registered a new client to the dispatcher "
                        << "[Client: " << client->description()
@@ -603,18 +671,18 @@ Dispatcher::registerClient(mqbi::DispatcherClient*           client,
             .setDestination(client);                           // not needed
         context.d_processorPool_mp->enqueueEvent(event, processor);
         return processor;  // RETURN
-    }  // break;
+    }                      // break;
     case mqbi::DispatcherClientType::e_UNDEFINED:
     case mqbi::DispatcherClientType::e_ALL:
     default: {
         BALL_LOG_ERROR << "#DISPATCHER_INVALID_CLIENT "
-                       << "Registering client of invalid type [type: "
-                       << client->dispatcherClientData().clientType()
+                       << "Registering client of invalid type [type: " << type
                        << ", client: '" << client->description() << "']";
         BSLS_ASSERT_OPT(false && "Invalid client type");
     }
     }
 
+    // Not reachable
     return mqbi::Dispatcher::k_INVALID_PROCESSOR_HANDLE;
 }
 
@@ -648,6 +716,9 @@ void Dispatcher::unregisterClient(mqbi::DispatcherClient* client)
     // Invalidate the client's processor handle
     client->dispatcherClientData().setProcessorHandle(
         mqbi::Dispatcher::k_INVALID_PROCESSOR_HANDLE);
+    // No need to explicitly unset resources shared pointer, we make sure that
+    // the last destructed entity holding this shared pointer will free
+    // resources.
 }
 
 void Dispatcher::execute(const mqbi::Dispatcher::ProcessorFunctor& functor,

@@ -3505,7 +3505,6 @@ int StorageManager::start(bsl::ostream& errorDescription)
         d_dispatcher_p,
         partitionCfg,
         &d_fileStores,
-        d_blobSpPool_p,
         &d_allocators,
         errorDescription,
         d_replicationFactor,

@@ -496,7 +496,6 @@ struct StorageUtil {
         mqbi::Dispatcher*                           dispatcher,
         const mqbcfg::PartitionConfig&              config,
         FileStores*                                 fileStores,
-        BlobSpPool*                                 blobSpPool,
         bmqma::CountingAllocatorStore*              allocators,
         bsl::ostream&                               errorDescription,
         int                                         replicationFactor,

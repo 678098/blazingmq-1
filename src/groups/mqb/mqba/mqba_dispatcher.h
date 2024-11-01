@@ -49,13 +49,14 @@
 // call to 'post'.
 
 // MQB
-
 #include <mqbcfg_messages.h>
 #include <mqbi_dispatcher.h>
 #include <mqbu_loadbalancer.h>
 
+// BMQ
 #include <bmqc_multiqueuethreadpool.h>
 #include <bmqex_executor.h>
+#include <bmqma_countingallocatorstore.h>
 
 // BDE
 #include <ball_log.h>
@@ -233,6 +234,12 @@ class Dispatcher BSLS_CPP11_FINAL : public mqbi::Dispatcher {
 
       public:
         // PUBLIC DATA
+        /// Allocator store for nested pools.
+        bmqma::CountingAllocatorStore d_allocators;
+
+        bsl::vector<bsl::shared_ptr<mqbi::DispatcherThreadResources> >
+            d_threadResources;
+
         ThreadPoolMp d_threadPool_mp;
         // Thread Pool to use
 
@@ -276,6 +283,9 @@ class Dispatcher BSLS_CPP11_FINAL : public mqbi::Dispatcher {
 
   private:
     // DATA
+    /// Allocator store for contexts.
+    bmqma::CountingAllocatorStore d_allocators;
+
     bslma::Allocator* d_allocator_p;
     // Allocator to use
 
@@ -362,6 +372,13 @@ class Dispatcher BSLS_CPP11_FINAL : public mqbi::Dispatcher {
 
     /// Stop the `Dispatcher`.
     void stop();
+
+    bsl::shared_ptr<mqbi::DispatcherThreadResources>
+    bookResources(mqbi::DispatcherClient*           client,
+                  mqbi::DispatcherClientType::Enum  type,
+                  mqbi::Dispatcher::ProcessorHandle handle =
+                      mqbi::Dispatcher::k_INVALID_PROCESSOR_HANDLE)
+        BSLS_KEYWORD_OVERRIDE;
 
     /// Based on the specified `type`, associate the specified `client` to
     /// one of the processors of the dispatcher if the optionally specified

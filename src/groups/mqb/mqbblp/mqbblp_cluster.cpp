@@ -2520,10 +2520,16 @@ Cluster::Cluster(const bslstl::StringRef&           name,
                  const mqbnet::Session::AdminCommandEnqueueCb& adminCb)
 : d_allocator_p(allocator)
 , d_allocators(d_allocator_p)
+, d_dispatcherClientData()
+, d_resources(
+      dispatcher->bookResources(this, mqbi::DispatcherClientType::e_CLUSTER))
 , d_isStarted(false)
 , d_isStopping(false)
 , d_clusterData(name,
-                resources,
+                &d_resources->d_blobBufferFactory,
+                &d_resources->d_blobSpPool,
+                resources.scheduler(),
+                &d_dispatcherClientData,
                 clusterConfig,
                 mqbcfg::ClusterProxyDefinition(allocator),
                 netCluster,

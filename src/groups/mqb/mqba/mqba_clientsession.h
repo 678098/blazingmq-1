@@ -173,9 +173,8 @@ struct ClientSessionState {
     // Map containing the
     // GUID->UnackedMessageInfo entries.
 
-    mqbi::DispatcherClientData d_dispatcherClientData;
-    // Dispatcher client data associated to
-    // this session.
+    /// Dispatcher client data associated to this session.
+    mqbi::DispatcherClientData* d_dispatcherClientData_p;
 
     StatContextMp d_statContext_mp;
     // Stat context dedicated to this
@@ -240,6 +239,7 @@ struct ClientSessionState {
         bslma::ManagedPtr<bmqst::StatContext>& clientStatContext,
         BlobSpPool*                            blobSpPool,
         bdlbb::BlobBufferFactory*              bufferFactory,
+        mqbi::DispatcherClientData*            dispatcherClientData_p,
         bmqp::EncodingType::Enum               encodingType,
         bslma::Allocator*                      allocator);
 };
@@ -319,6 +319,12 @@ class ClientSession : public mqbnet::Session,
     // because we can't guarantee this queue
     // is drained before destroying the
     // session.
+
+    /// Dispatcher client data associated to this session.
+    mqbi::DispatcherClientData d_dispatcherClientData;
+
+    /// Resources associated with the thread used by this dispatcher client.
+    bsl::shared_ptr<mqbi::DispatcherThreadResources> d_resources;
 
     OperationState d_operationState;
     // Show whether the session is running
@@ -641,13 +647,13 @@ class ClientSession : public mqbnet::Session,
     // CREATORS
 
     /// Constructor of a new session associated to the specified `channel`
-    /// and using the specified `dispatcher`, `domainFactory`, `blobSpPool`,
-    /// `bufferFactory` and `scheduler`.  The specified `clientStatContext`
-    /// should be used as the top level for statistics associated to this
-    /// session.  The specified `negotiationMessage` represents the identity
-    /// received from the peer during negotiation, and the specified
-    /// `sessionDescription` is the short form description of the session.
-    /// Memory allocations are performed using the specified `allocator`.
+    /// and using the specified `dispatcher`, `domainFactory` and `scheduler`.
+    /// The specified `clientStatContext` should be used as the top level for
+    /// statistics associated to this session.  The specified
+    /// `negotiationMessage` represents the identity received from the peer
+    /// during negotiation, and the specified `sessionDescription` is the short
+    /// form description of the session.  Memory allocations are performed
+    /// using the specified `allocator`.
     ClientSession(const bsl::shared_ptr<bmqio::Channel>&  channel,
                   const bmqp_ctrlmsg::NegotiationMessage& negotiationMessage,
                   const bsl::string&                      sessionDescription,
@@ -655,8 +661,6 @@ class ClientSession : public mqbnet::Session,
                   mqbblp::ClusterCatalog*                 clusterCatalog,
                   mqbi::DomainFactory*                    domainFactory,
                   bslma::ManagedPtr<bmqst::StatContext>&  clientStatContext,
-                  ClientSessionState::BlobSpPool*         blobSpPool,
-                  bdlbb::BlobBufferFactory*               bufferFactory,
                   bdlmt::EventScheduler*                  scheduler,
                   bslma::Allocator*                       allocator);
 
@@ -860,23 +864,23 @@ inline const bsl::string& ClientSession::description() const
 
 inline mqbi::Dispatcher* ClientSession::dispatcher()
 {
-    return d_state.d_dispatcherClientData.dispatcher();
+    return d_dispatcherClientData.dispatcher();
 }
 
 inline const mqbi::Dispatcher* ClientSession::dispatcher() const
 {
-    return d_state.d_dispatcherClientData.dispatcher();
+    return d_dispatcherClientData.dispatcher();
 }
 
 inline const mqbi::DispatcherClientData&
 ClientSession::dispatcherClientData() const
 {
-    return d_state.d_dispatcherClientData;
+    return d_dispatcherClientData;
 }
 
 inline mqbi::DispatcherClientData& ClientSession::dispatcherClientData()
 {
-    return d_state.d_dispatcherClientData;
+    return d_dispatcherClientData;
 }
 
 inline const bsl::shared_ptr<mqbi::QueueHandleRequesterContext>&

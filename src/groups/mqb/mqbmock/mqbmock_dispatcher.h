@@ -67,6 +67,10 @@ class Dispatcher : public mqbi::Dispatcher {
     // A map from clients to events.
   private:
     // DATA
+    bslma::Allocator* d_allocator_p;  // Allocator to use
+
+    bsl::shared_ptr<mqbi::DispatcherThreadResources> d_resources;
+
     bool d_inDispatcherThread;
     // A flag indicating whether the
     // current thread is in the dispatcher
@@ -75,8 +79,6 @@ class Dispatcher : public mqbi::Dispatcher {
     EventMap d_eventsForClients;
     // Maps clients to currently processed
     // events;
-
-    bslma::Allocator* d_allocator_p;  // Allocator to use
 
   private:
     // NOT IMPLEMENTED
@@ -98,6 +100,13 @@ class Dispatcher : public mqbi::Dispatcher {
 
     // MANIPULATORS
     //   (virtual: mqbi::Dispatcher)
+
+    bsl::shared_ptr<mqbi::DispatcherThreadResources>
+    bookResources(mqbi::DispatcherClient*           client,
+                  mqbi::DispatcherClientType::Enum  type,
+                  mqbi::Dispatcher::ProcessorHandle handle =
+                      mqbi::Dispatcher::k_INVALID_PROCESSOR_HANDLE)
+        BSLS_KEYWORD_OVERRIDE;
 
     /// Associate the specified `client` to one of the dispatcher's
     /// processors in charge of clients of the specified `type`.  Use the

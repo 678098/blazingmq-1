@@ -33,17 +33,25 @@ namespace mqbmock {
 
 // CREATORS
 Dispatcher::Dispatcher(bslma::Allocator* allocator)
-: d_inDispatcherThread(false)
-, d_eventsForClients(allocator)
-, d_allocator_p(allocator)
-
+: d_allocator_p(bslma::Default::allocator(allocator))
+, d_resources()
+, d_inDispatcherThread(false)
+, d_eventsForClients(d_allocator_p)
 {
-    // NOTHING
+    d_resources.createInplace(d_allocator_p, d_allocator_p);
 }
 
 Dispatcher::~Dispatcher()
 {
     // NOTHING
+}
+
+bsl::shared_ptr<mqbi::DispatcherThreadResources> Dispatcher::bookResources(
+    BSLS_ANNOTATION_UNUSED mqbi::DispatcherClient* client,
+    BSLS_ANNOTATION_UNUSED mqbi::DispatcherClientType::Enum type,
+    BSLS_ANNOTATION_UNUSED mqbi::Dispatcher::ProcessorHandle handle)
+{
+    return d_resources;
 }
 
 // MANIPULATORS

@@ -25,7 +25,7 @@
 //@DESCRIPTION: TBD:
 
 // MQB
-
+#include <mqbblp_pushstream.h>
 #include <mqbblp_queueengineutil.h>
 #include <mqbblp_queuehandlecatalog.h>
 #include <mqbcfg_messages.h>
@@ -111,6 +111,13 @@ class QueueState {
     mqbi::Queue* d_queue_p;
     // The queue associated to this state.
 
+    mqbi::DispatcherClientData* d_dispatcherClientData_p;
+
+    bsl::shared_ptr<mqbi::DispatcherThreadResources> d_resources;
+
+    /// EventScheduler to use
+    bdlmt::EventScheduler* d_scheduler_p;
+
     bmqt::Uri d_uri;
     // The URI of the queue associated to
     // this state.
@@ -151,8 +158,6 @@ class QueueState {
     mqbi::AppKeyGenerator* d_appKeyGenerator_p;
     // App key generator to use.
 
-    const mqbi::ClusterResources d_resources;
-
     bdlmt::FixedThreadPool* d_miscWorkThreadPool_p;
     // Thread pool used for any standalone
     // work that can be  offloaded to any
@@ -161,10 +166,6 @@ class QueueState {
     StorageMp d_storage_mp;
     // Storage used by the queue associated
     // to this state.
-
-    mqbi::DispatcherClientData d_dispatcherClientData;
-    // Dispatcher Client Data of the queue
-    // associated to this state.
 
     mqbstat::QueueStatsDomain d_stats;
     // Statistics of the queue associated
@@ -200,14 +201,15 @@ class QueueState {
     /// Create a new 'QueueState' associated to the specified 'queue' and
     /// having the specified 'uri', 'id', 'key', 'partitionId', 'domain', and
     /// 'resources'.  Use the specified 'allocator' for any memory allocations.
-    QueueState(mqbi::Queue*                 queue,
-               const bmqt::Uri&             uri,
-               unsigned int                 id,
-               const mqbu::StorageKey&      key,
-               int                          partitionId,
-               mqbi::Domain*                domain,
-               const mqbi::ClusterResources resources,
-               bslma::Allocator*            allocator);
+    QueueState(mqbi::Queue*                queue,
+               const bmqt::Uri&            uri,
+               unsigned int                id,
+               const mqbu::StorageKey&     key,
+               int                         partitionId,
+               bdlmt::EventScheduler*      scheduler_p,
+               mqbi::DispatcherClientData* dispatcherClientData_p,
+               mqbi::Domain*               domain,
+               bslma::Allocator*           allocator);
 
     /// Destructor
     ~QueueState();
@@ -233,6 +235,7 @@ class QueueState {
 
     mqbi::DispatcherClientData& dispatcherClientData();
     QueueHandleCatalog&         handleCatalog();
+    mqbi::DispatcherThreadResources& resources();
 
     /// Store the specified value in the subQueuesParametersMap under the
     /// specified `subQueueId` key.
@@ -292,7 +295,7 @@ class QueueState {
     bdlbb::BlobBufferFactory*                    blobBufferFactory() const;
     bdlmt::EventScheduler*                       scheduler() const;
     mqbi::ClusterResources::BlobSpPool*          blobSpPool() const;
-    const bsl::optional<bdlma::ConcurrentPool*>& pushElementsPool() const;
+    bdlma::ConcurrentPool*                       pushElementsPool() const;
     bdlmt::FixedThreadPool*                      miscWorkThreadPool() const;
     const bsl::string&                           description() const;
     const mqbi::DispatcherClientData&            dispatcherClientData() const;
@@ -436,7 +439,10 @@ inline QueueState& QueueState::setUri(const bmqt::Uri& value)
 
 inline mqbi::DispatcherClientData& QueueState::dispatcherClientData()
 {
-    return d_dispatcherClientData;
+    // PRECONDITIONS
+    BSLS_ASSERT_SAFE(d_dispatcherClientData_p);
+
+    return *d_dispatcherClientData_p;
 }
 
 inline QueueHandleCatalog& QueueState::handleCatalog()
@@ -508,26 +514,45 @@ inline Routers::QueueRoutingContext& QueueState::routingContext()
     return d_context;
 }
 
+inline mqbi::DispatcherThreadResources& QueueState::resources()
+{
+    BSLS_ASSERT_SAFE(d_resources);
+    return *d_resources;
+}
+
 // ACCESSORS
 inline bdlbb::BlobBufferFactory* QueueState::blobBufferFactory() const
 {
-    return d_resources.bufferFactory();
+    return &d_resources->d_blobBufferFactory;
 }
 
 inline bdlmt::EventScheduler* QueueState::scheduler() const
 {
-    return d_resources.scheduler();
+    return d_scheduler_p;
 }
 
 inline mqbi::ClusterResources::BlobSpPool* QueueState::blobSpPool() const
 {
-    return d_resources.blobSpPool();
+    return &d_resources->d_blobSpPool;
 }
 
-inline const bsl::optional<bdlma::ConcurrentPool*>&
-QueueState::pushElementsPool() const
+inline bdlma::ConcurrentPool* QueueState::pushElementsPool() const
 {
-    return d_resources.pushElementsPool();
+    // Executed by the *QUEUE DISPATCHER* thread
+    BSLS_ASSERT_SAFE(d_queue_p->dispatcher()->inDispatcherThread(d_queue_p));
+
+    // PRECONDITIONS
+    BSLS_ASSERT_SAFE(d_resources);
+    if (!d_resources->d_pushElementsPool_mp) {
+        // Lazy initialize push elements pool.
+        bslma::Allocator* pushElementsAllocator =
+            d_resources->d_allocators.get("PushElementsPool");
+        d_resources->d_pushElementsPool_mp.load(
+            new (*pushElementsAllocator)
+                bdlma::ConcurrentPool(sizeof(mqbblp::PushStream::Element),
+                                      pushElementsAllocator));
+    }
+    return d_resources->d_pushElementsPool_mp.get();
 }
 
 inline bdlmt::FixedThreadPool* QueueState::miscWorkThreadPool() const
@@ -543,7 +568,10 @@ inline const bsl::string& QueueState::description() const
 inline const mqbi::DispatcherClientData&
 QueueState::dispatcherClientData() const
 {
-    return d_dispatcherClientData;
+    // PRECONDITIONS
+    BSLS_ASSERT_SAFE(d_dispatcherClientData_p);
+
+    return *d_dispatcherClientData_p;
 }
 
 inline mqbi::Domain* QueueState::domain() const

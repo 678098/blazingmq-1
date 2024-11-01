@@ -471,8 +471,8 @@ RemoteQueue::RemoteQueue(QueueState*       state,
     // PRECONDITIONS
     BSLS_ASSERT_SAFE(d_state_p->id() != bmqp::QueueId::k_UNASSIGNED_QUEUE_ID);
     BSLS_ASSERT_SAFE(d_state_p->id() != bmqp::QueueId::k_PRIMARY_QUEUE_ID);
-    // A RemoteQueue must have an upstream id
 
+    // A RemoteQueue must have an upstream id
     d_throttledFailedPutMessages.initialize(
         1,
         5 * bdlt::TimeUnitRatio::k_NS_PER_S);

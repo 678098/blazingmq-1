@@ -102,24 +102,6 @@ bmqp_ctrlmsg::ClientIdentity* extractClientIdentity(
 
 }  // close unnamed namespace
 
-// -------------------------
-// struct AdminSessionState
-// -------------------------
-
-AdminSessionState::AdminSessionState(BlobSpPool*               blobSpPool,
-                                     bdlbb::BlobBufferFactory* bufferFactory,
-                                     bmqp::EncodingType::Enum  encodingType,
-                                     bslma::Allocator*         allocator)
-: d_allocator_p(allocator)
-, d_dispatcherClientData()
-, d_bufferFactory_p(bufferFactory)
-, d_blobSpPool_p(blobSpPool)
-, d_schemaEventBuilder(blobSpPool, encodingType, allocator)
-{
-    // PRECONDITIONS
-    BSLS_ASSERT_SAFE(encodingType != bmqp::EncodingType::e_UNKNOWN);
-}
-
 // -------------------
 // class AdminSession
 // -------------------
@@ -134,8 +116,8 @@ void AdminSession::sendPacket()
 
     bdlb::ScopeExitAny resetBlobScopeGuard(
         bdlf::BindUtil::bind(&bmqp::SchemaEventBuilder::reset,
-                             &d_state.d_schemaEventBuilder));
-    const bdlbb::Blob& blob = d_state.d_schemaEventBuilder.blob();
+                             &d_schemaEventBuilder));
+    const bdlbb::Blob& blob = d_schemaEventBuilder.blob();
 
     // This method is the centralized *single* place where we should try to
     // send data to the client over the channel.
@@ -194,11 +176,10 @@ void AdminSession::finalizeAdminCommand(
     // PRECONDITIONS
     BSLS_ASSERT_SAFE(dispatcher()->inDispatcherThread(this));
     BSLS_ASSERT_SAFE(adminCommandCtrlMsg.choice().isAdminCommandValue());
-    BSLS_ASSERT_SAFE(d_state.d_schemaEventBuilder.blob().length() == 0);
+    BSLS_ASSERT_SAFE(d_schemaEventBuilder.blob().length() == 0);
 
     // Send success/error response to client
-    bdlma::LocalSequentialAllocator<2048> localAllocator(
-        d_state.d_allocator_p);
+    bdlma::LocalSequentialAllocator<2048> localAllocator(d_allocator_p);
 
     bmqp_ctrlmsg::ControlMessage response(&localAllocator);
     response.rId() = adminCommandCtrlMsg.rId().value();
@@ -208,9 +189,8 @@ void AdminSession::finalizeAdminCommand(
 
     BALL_LOG_INFO << description() << ": Send response message: " << response;
 
-    int rc = d_state.d_schemaEventBuilder.setMessage(
-        response,
-        bmqp::EventType::e_CONTROL);
+    int rc = d_schemaEventBuilder.setMessage(response,
+                                             bmqp::EventType::e_CONTROL);
 
     if (rc != 0) {
         BALL_LOG_ERROR << "#ADMCLIENT_SEND_FAILURE " << description()
@@ -273,22 +253,23 @@ AdminSession::AdminSession(
     const bmqp_ctrlmsg::NegotiationMessage&       negotiationMessage,
     const bsl::string&                            sessionDescription,
     mqbi::Dispatcher*                             dispatcher,
-    AdminSessionState::BlobSpPool*                blobSpPool,
-    bdlbb::BlobBufferFactory*                     bufferFactory,
     bdlmt::EventScheduler*                        scheduler,
     const mqbnet::Session::AdminCommandEnqueueCb& adminCb,
     bslma::Allocator*                             allocator)
 : d_self(this)  // use default allocator
-, d_running(true)
-, d_negotiationMessage(negotiationMessage, allocator)
+, d_allocator_p(bslma::Default::allocator(allocator))
+, d_dispatcherClientData()
+, d_resources(
+      dispatcher->bookResources(this, mqbi::DispatcherClientType::e_SESSION))
+, d_negotiationMessage(negotiationMessage, d_allocator_p)
 , d_clientIdentity_p(extractClientIdentity(d_negotiationMessage))
-, d_description(sessionDescription, allocator)
+, d_schemaEventBuilder(&d_resources->d_blobSpPool,
+                       bmqp::SchemaEventBuilderUtil::bestEncodingSupported(
+                           d_clientIdentity_p->features()),
+                       d_allocator_p)
+, d_running(true)
+, d_description(sessionDescription, d_allocator_p)
 , d_channel_sp(channel)
-, d_state(blobSpPool,
-          bufferFactory,
-          bmqp::SchemaEventBuilderUtil::bestEncodingSupported(
-              d_clientIdentity_p->features()),
-          allocator)
 , d_scheduler_p(scheduler)
 , d_adminCb(adminCb)
 {
@@ -330,8 +311,7 @@ void AdminSession::processEvent(
         return;  // RETURN
     }
 
-    bdlma::LocalSequentialAllocator<2048> localAllocator(
-        d_state.d_allocator_p);
+    bdlma::LocalSequentialAllocator<2048> localAllocator(d_allocator_p);
     bmqp_ctrlmsg::ControlMessage controlMessage(&localAllocator);
 
     int rc = event.loadControlEvent(&controlMessage);

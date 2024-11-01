@@ -263,6 +263,12 @@ class FileStore : public DataStore {
     // Allocator store to spawn new
     // allocators for sub-components
 
+    /// Dispatcher client data associated to this instance.
+    mqbi::DispatcherClientData d_dispatcherClientData;
+
+    /// Resources associated with the thread used by this dispatcher client.
+    bsl::shared_ptr<mqbi::DispatcherThreadResources> d_resources;
+
     bmqma::CountingAllocatorStore d_storageAllocatorStore;
     // Allocator store to pass to all the
     // queue storages (file-backed or
@@ -280,10 +286,6 @@ class FileStore : public DataStore {
 
     bsl::string d_partitionDescription;
     // Brief description for logging
-
-    mqbi::DispatcherClientData d_dispatcherClientData;
-    // Dispatcher client data associated
-    // with this instance.
 
     mqbstat::ClusterStats* d_clusterStats_p;
     // Stat object associated to the
@@ -679,15 +681,13 @@ class FileStore : public DataStore {
     // CREATORS
 
     /// Create an instance with the specified `config`, `processorId`,
-    /// `dispatcher`, `cluster`, `clusterStats`, `blobSpPool`,
-    /// `miscWorkThreadPool`, `isCSLModeEnabled`, `isFSMWorkflow` and
-    /// `allocator`.
+    /// `dispatcher`, `cluster`, `clusterStats`, `miscWorkThreadPool`,
+    /// `isCSLModeEnabled`, `isFSMWorkflow` and `allocator`.
     FileStore(const DataStoreConfig&  config,
               int                     processorId,
               mqbi::Dispatcher*       dispatcher,
               mqbnet::Cluster*        cluster,
               mqbstat::ClusterStats*  clusterStats,
-              BlobSpPool*             blobSpPool,
               StateSpPool*            statePool,
               bdlmt::FixedThreadPool* miscWorkThreadPool,
               bool                    isCSLModeEnabled,

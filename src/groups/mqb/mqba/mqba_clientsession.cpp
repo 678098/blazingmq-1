@@ -297,12 +297,13 @@ ClientSessionState::ClientSessionState(
     bslma::ManagedPtr<bmqst::StatContext>& clientStatContext,
     BlobSpPool*                            blobSpPool,
     bdlbb::BlobBufferFactory*              bufferFactory,
+    mqbi::DispatcherClientData*            dispatcherClientData_p,
     bmqp::EncodingType::Enum               encodingType,
     bslma::Allocator*                      allocator)
 : d_allocator_p(allocator)
 , d_channelBufferQueue(allocator)
 , d_unackedMessageInfos(d_allocator_p)
-, d_dispatcherClientData()
+, d_dispatcherClientData_p(dispatcherClientData_p)
 , d_statContext_mp(clientStatContext)
 , d_bufferFactory_p(bufferFactory)
 , d_blobSpPool_p(blobSpPool)
@@ -2593,11 +2594,12 @@ ClientSession::ClientSession(
     mqbblp::ClusterCatalog*                 clusterCatalog,
     mqbi::DomainFactory*                    domainFactory,
     bslma::ManagedPtr<bmqst::StatContext>&  clientStatContext,
-    ClientSessionState::BlobSpPool*         blobSpPool,
-    bdlbb::BlobBufferFactory*               bufferFactory,
     bdlmt::EventScheduler*                  scheduler,
     bslma::Allocator*                       allocator)
 : d_self(this)  // use default allocator
+, d_dispatcherClientData()
+, d_resources(
+      dispatcher->bookResources(this, mqbi::DispatcherClientType::e_SESSION))
 , d_operationState(e_RUNNING)
 , d_isDisconnecting(false)
 , d_negotiationMessage(negotiationMessage, allocator)
@@ -2606,8 +2608,9 @@ ClientSession::ClientSession(
 , d_description(sessionDescription, allocator)
 , d_channel_sp(channel)
 , d_state(clientStatContext,
-          blobSpPool,
-          bufferFactory,
+          &d_resources->d_blobSpPool,
+          &d_resources->d_blobBufferFactory,
+          &d_dispatcherClientData,
           bmqp::SchemaEventBuilderUtil::bestEncodingSupported(
               d_clientIdentity_p->features()),
           allocator)

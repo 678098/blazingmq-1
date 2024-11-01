@@ -32,6 +32,28 @@
 namespace BloombergLP {
 namespace mqbi {
 
+namespace {
+
+const int k_BLOBBUFFER_SIZE = 4 * 1024;
+
+}  // close unnamed namespace
+
+// -------------------------------
+// struct DispatcherThreadResource
+// -------------------------------
+
+DispatcherThreadResources::DispatcherThreadResources(
+    bslma::Allocator* allocator)
+: d_allocators(allocator)
+, d_blobBufferFactory(k_BLOBBUFFER_SIZE, d_allocators.get("BlobBufferFactory"))
+, d_blobSpPool(
+      bmqp::BlobPoolUtil::createBlobPool(&d_blobBufferFactory,
+                                         d_allocators.get("BlobSpPool")))
+, d_pushElementsPool_mp()
+{
+    // NOTHING
+}
+
 // ---------------------------
 // struct DispatcherClientType
 // ---------------------------

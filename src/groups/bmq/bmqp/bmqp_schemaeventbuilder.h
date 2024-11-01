@@ -207,6 +207,7 @@ inline SchemaEventBuilder::SchemaEventBuilder(
 {
     // PRECONDITIONS
     BSLS_ASSERT_SAFE(blobSpPool_p);
+    BSLS_ASSERT_SAFE(bmqp::EncodingType::e_UNKNOWN != encodingType);
 
     reset();
 }

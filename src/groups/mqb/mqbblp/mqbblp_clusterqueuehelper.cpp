@@ -2107,16 +2107,18 @@ bsl::shared_ptr<mqbi::Queue> ClusterQueueHelper::createQueueFactory(
 
     // Create the queue
     bsl::shared_ptr<mqbblp::Queue> queueSp(
-        new (*d_allocator_p) Queue(context.d_queueContext_p->uri(),
-                                   context.d_queueContext_p->d_liveQInfo.d_id,
-                                   context.d_queueContext_p->key(),
-                                   context.d_queueContext_p->partitionId(),
-                                   context.d_domain_p,
-                                   d_storageManager_p,
-                                   d_clusterData_p->resources(),
-                                   &d_clusterData_p->miscWorkThreadPool(),
-                                   openQueueResponse.routingConfiguration(),
-                                   d_allocator_p),
+        new (*d_allocator_p)
+            Queue(context.d_queueContext_p->uri(),
+                  context.d_queueContext_p->d_liveQInfo.d_id,
+                  context.d_queueContext_p->key(),
+                  context.d_queueContext_p->partitionId(),
+                  d_clusterData_p->dispatcherClientData().dispatcher(),
+                  context.d_domain_p,
+                  d_storageManager_p,
+                  &d_clusterData_p->scheduler(),
+                  &d_clusterData_p->miscWorkThreadPool(),
+                  openQueueResponse.routingConfiguration(),
+                  d_allocator_p),
         d_allocator_p);
 
     if (!isPrimary) {

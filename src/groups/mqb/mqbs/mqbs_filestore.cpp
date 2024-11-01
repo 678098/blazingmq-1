@@ -5143,7 +5143,6 @@ FileStore::FileStore(const DataStoreConfig&  config,
                      mqbi::Dispatcher*       dispatcher,
                      mqbnet::Cluster*        cluster,
                      mqbstat::ClusterStats*  clusterStats,
-                     BlobSpPool*             blobSpPool,
                      StateSpPool*            statePool,
                      bdlmt::FixedThreadPool* miscWorkThreadPool,
                      bool                    isCSLModeEnabled,
@@ -5152,12 +5151,15 @@ FileStore::FileStore(const DataStoreConfig&  config,
                      bslma::Allocator*       allocator)
 : d_allocator_p(allocator)
 , d_allocators(allocator)
+, d_dispatcherClientData()
+, d_resources(dispatcher->bookResources(this,
+                                        mqbi::DispatcherClientType::e_QUEUE,
+                                        processorId))
 , d_storageAllocatorStore(d_allocators.get("QueueStorage"))
 , d_config(config)
 , d_partitionDescription(allocator)
-, d_dispatcherClientData()
 , d_clusterStats_p(clusterStats)
-, d_blobSpPool_p(blobSpPool)
+, d_blobSpPool_p(&d_resources->d_blobSpPool)
 , d_statePool_p(statePool)
 , d_aliasedBufferDeleterSpPool(1024, d_allocators.get("AliasedBufferDeleters"))
 , d_isOpen(false)
@@ -5194,7 +5196,7 @@ FileStore::FileStore(const DataStoreConfig&  config,
     BSLS_ASSERT(d_cluster_p);
     BSLS_ASSERT(1 <= clusterSize());
 
-    bmqu::MemOutStream os;
+    bmqu::MemOutStream os(allocator);
     os << "Partition [" << d_config.partitionId()
        << "] (cluster: " << d_cluster_p->name() << "): ";
     d_partitionDescription.assign(os.str().data(), os.str().length());

@@ -159,8 +159,6 @@ Application::Application(bdlmt::EventScheduler* scheduler,
                                     bdlf::PlaceHolders::_2),  // allocator
                k_BLOB_POOL_GROWTH_STRATEGY,
                d_allocators.get("BlobSpPool"))
-, d_pushElementsPool(sizeof(mqbblp::PushStream::Element),
-                     d_allocators.get("PushElementsPool"))
 , d_allocatorsStatContext_p(allocatorsStatContext)
 , d_pluginManager_mp()
 , d_statController_mp()
@@ -271,8 +269,7 @@ int Application::start(bsl::ostream& errorDescription)
 
     mqbi::ClusterResources resources(d_scheduler_p,
                                      &d_bufferFactory,
-                                     &d_blobSpPool,
-                                     &d_pushElementsPool);
+                                     &d_blobSpPool);
 
     // Start the StatController
     d_statController_mp.load(

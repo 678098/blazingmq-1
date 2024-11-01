@@ -258,6 +258,12 @@ class Cluster : public mqbi::Cluster,
     // Allocator store to spawn new
     // allocators for sub-components
 
+    /// Dispatcher client data associated to this cluster.
+    mqbi::DispatcherClientData d_dispatcherClientData;
+
+    /// Resources associated with the thread used by this dispatcher client.
+    bsl::shared_ptr<mqbi::DispatcherThreadResources> d_resources;
+
     bool d_isStarted;
     // Flag to indicate start/stop status
     // This flag is used only inside this
@@ -937,22 +943,22 @@ Cluster::clusterProxyConfig() const
 
 inline mqbi::Dispatcher* Cluster::dispatcher()
 {
-    return dispatcherClientData().dispatcher();
+    return d_dispatcherClientData.dispatcher();
 }
 
 inline const mqbi::Dispatcher* Cluster::dispatcher() const
 {
-    return dispatcherClientData().dispatcher();
+    return d_dispatcherClientData.dispatcher();
 }
 
 inline const mqbi::DispatcherClientData& Cluster::dispatcherClientData() const
 {
-    return d_clusterData.dispatcherClientData();
+    return d_dispatcherClientData;
 }
 
 inline mqbi::DispatcherClientData& Cluster::dispatcherClientData()
 {
-    return d_clusterData.dispatcherClientData();
+    return d_dispatcherClientData;
 }
 
 inline const bsl::string& Cluster::description() const

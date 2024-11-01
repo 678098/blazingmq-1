@@ -488,15 +488,16 @@ void QueueEngineTester::init(const mqbconfm::Domain& domainConfig,
         d_mockDispatcher_mp->inDispatcherThread(d_mockCluster_mp.get()));
 
     // Queue State
-    d_queueState_mp.load(new (*d_allocator_p)
-                             mqbblp::QueueState(d_mockQueue_sp.get(),
-                                                d_mockQueue_sp->uri(),
-                                                k_UNASSIGNED_QUEUE_ID,
-                                                k_NULL_QUEUE_KEY,
-                                                k_PARTITION_ID,
-                                                d_mockDomain_mp.get(),
-                                                d_mockCluster_mp->_resources(),
-                                                d_allocator_p),
+    d_queueState_mp.load(new (*d_allocator_p) mqbblp::QueueState(
+                             d_mockQueue_sp.get(),
+                             d_mockQueue_sp->uri(),
+                             k_UNASSIGNED_QUEUE_ID,
+                             k_NULL_QUEUE_KEY,
+                             k_PARTITION_ID,
+                             d_mockCluster_mp->_resources().scheduler(),
+                             &d_mockQueue_sp->dispatcherClientData(),
+                             d_mockDomain_mp.get(),
+                             d_allocator_p),
                          d_allocator_p);
 
     d_queueState_mp->setAppKeyGenerator(&d_appKeyGenerator);

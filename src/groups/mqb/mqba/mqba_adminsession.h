@@ -67,67 +67,6 @@ class Event;
 
 namespace mqba {
 
-// =========================
-// struct AdminSessionState
-// =========================
-
-/// VST representing the state of a session
-struct AdminSessionState {
-  public:
-    // TYPES
-
-    /// Pool of shared pointers to Blobs
-    typedef bdlcc::SharedObjectPool<
-        bdlbb::Blob,
-        bdlcc::ObjectPoolFunctors::DefaultCreator,
-        bdlcc::ObjectPoolFunctors::RemoveAll<bdlbb::Blob> >
-        BlobSpPool;
-
-  public:
-    // PUBLIC DATA
-    bslma::Allocator* d_allocator_p;
-    // Allocator to use.
-
-    mqbi::DispatcherClientData d_dispatcherClientData;
-    // Dispatcher client data associated to
-    // this session.
-
-    bdlbb::BlobBufferFactory* d_bufferFactory_p;
-    // Blob buffer factory to use.
-
-    BlobSpPool* d_blobSpPool_p;
-    // Pool of shared pointers to blob to
-    // use.
-
-    bmqp::SchemaEventBuilder d_schemaEventBuilder;
-    // Builder for schema messages.  To be
-    // used only in client dispatcher
-    // thread.
-
-  private:
-    // NOT IMPLEMENTED
-
-    /// Copy constructor and assignment operator are not implemented.
-    AdminSessionState(const AdminSessionState&);             // = delete;
-    AdminSessionState& operator=(const AdminSessionState&);  // = delete;
-
-  public:
-    // TRAITS
-    BSLMF_NESTED_TRAIT_DECLARATION(AdminSessionState,
-                                   bslma::UsesBslmaAllocator)
-
-    // CREATORS
-
-    /// Constructor of a new session state using the specified `dispatcher`,
-    /// `blobSpPool` and `bufferFactory`.  The specified `encodingType` is
-    /// the encoding which the schema event builder will use.  Memory
-    /// allocations are performed using the specified `allocator`.
-    AdminSessionState(BlobSpPool*               blobSpPool,
-                      bdlbb::BlobBufferFactory* bufferFactory,
-                      bmqp::EncodingType::Enum  encodingType,
-                      bslma::Allocator*         allocator);
-};
-
 // ==================
 // class AdminSession
 // ==================
@@ -148,8 +87,13 @@ class AdminSession : public mqbnet::Session, public mqbi::DispatcherClient {
     // be called from outside of the
     // dispatcher's thread.
 
-    bool d_running;
-    // Show whether the session is running.
+    bslma::Allocator* d_allocator_p;
+
+    /// Dispatcher client data associated to this session.
+    mqbi::DispatcherClientData d_dispatcherClientData;
+
+    /// Resources associated with the thread used by this dispatcher client.
+    bsl::shared_ptr<mqbi::DispatcherThreadResources> d_resources;
 
     bmqp_ctrlmsg::NegotiationMessage d_negotiationMessage;
     // Negotiation message received from the
@@ -161,14 +105,18 @@ class AdminSession : public mqbnet::Session, public mqbi::DispatcherClient {
     // whether it's a 'client' or a
     // 'broker').
 
+    /// Builder for schema messages.
+    /// To be used only in client dispatcher thread.
+    bmqp::SchemaEventBuilder d_schemaEventBuilder;
+
+    bool d_running;
+    // Show whether the session is running.
+
     bsl::string d_description;
     // Short identifier for this session.
 
     bsl::shared_ptr<bmqio::Channel> d_channel_sp;
     // Channel associated to this session.
-
-    AdminSessionState d_state;
-    // The state associated to this session.
 
     bdlmt::EventScheduler* d_scheduler_p;
     // Pointer to the event scheduler to
@@ -230,20 +178,17 @@ class AdminSession : public mqbnet::Session, public mqbi::DispatcherClient {
     // CREATORS
 
     /// Constructor of a new session associated to the specified `channel`
-    /// and using the specified `dispatcher`, `blobSpPool`, `bufferFactory`
-    /// and `scheduler`.  The specified `negotiationMessage` represents the
-    /// identity received from the peer during negotiation, and the
-    /// specified `sessionDescription` is the short form description of the
-    /// session.  Memory allocations are performed using the specified
-    /// `allocator`.  The specified `adminEnqueueCb` callback is used to
-    /// enqueue admin commands to entity that is responsible for executing
-    /// admin commands.
+    /// and using the specified `dispatcher`, and `scheduler`.  The specified
+    /// `negotiationMessage` represents the identity received from the peer
+    /// during negotiation, and the specified `sessionDescription` is the short
+    /// form description of the session.  Memory allocations are performed
+    /// using the specified `allocator`.  The specified `adminEnqueueCb`
+    /// callback is used to enqueue admin commands to entity that is
+    /// responsible for executing admin commands.
     AdminSession(const bsl::shared_ptr<bmqio::Channel>&  channel,
                  const bmqp_ctrlmsg::NegotiationMessage& negotiationMessage,
                  const bsl::string&                      sessionDescription,
                  mqbi::Dispatcher*                       dispatcher,
-                 AdminSessionState::BlobSpPool*          blobSpPool,
-                 bdlbb::BlobBufferFactory*               bufferFactory,
                  bdlmt::EventScheduler*                  scheduler,
                  const mqbnet::Session::AdminCommandEnqueueCb& adminEnqueueCb,
                  bslma::Allocator*                             allocator);
@@ -371,7 +316,7 @@ inline const bsl::string& AdminSession::description() const
 
 inline mqbi::Dispatcher* AdminSession::dispatcher()
 {
-    return d_state.d_dispatcherClientData.dispatcher();
+    return d_dispatcherClientData.dispatcher();
 }
 
 inline const bmqp_ctrlmsg::NegotiationMessage&
@@ -382,18 +327,18 @@ AdminSession::negotiationMessage() const
 
 inline const mqbi::Dispatcher* AdminSession::dispatcher() const
 {
-    return d_state.d_dispatcherClientData.dispatcher();
+    return d_dispatcherClientData.dispatcher();
 }
 
 inline const mqbi::DispatcherClientData&
 AdminSession::dispatcherClientData() const
 {
-    return d_state.d_dispatcherClientData;
+    return d_dispatcherClientData;
 }
 
 inline mqbi::DispatcherClientData& AdminSession::dispatcherClientData()
 {
-    return d_state.d_dispatcherClientData;
+    return d_dispatcherClientData;
 }
 
 }  // close package namespace

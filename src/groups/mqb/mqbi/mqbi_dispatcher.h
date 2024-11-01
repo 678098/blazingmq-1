@@ -105,9 +105,9 @@
 // defined.  For more information about executors see the 'bmqex' package
 // documentation.
 
-// MQB
-
 // BMQ
+#include <bmqma_countingallocatorstore.h>
+#include <bmqp_blobpoolutil.h>
 #include <bmqp_ctrlmsg_messages.h>
 #include <bmqp_protocol.h>
 #include <bmqt_compressionalgorithmtype.h>
@@ -119,6 +119,7 @@
 
 // BDE
 #include <bdlbb_blob.h>
+#include <bdlbb_pooledblobbufferfactory.h>
 #include <bsl_functional.h>
 #include <bsl_iostream.h>
 #include <bsl_memory.h>
@@ -311,6 +312,32 @@ struct DispatcherEventType {
 bsl::ostream& operator<<(bsl::ostream&             stream,
                          DispatcherEventType::Enum value);
 
+// ================================
+// struct DispatcherThreadResources
+// ================================
+
+struct DispatcherThreadResources {
+  public:
+    // TYPES
+    typedef bmqp::BlobPoolUtil::BlobSpPool BlobSpPool;
+
+    // PUBLIC DATA
+    bmqma::CountingAllocatorStore d_allocators;
+
+    bdlbb::PooledBlobBufferFactory d_blobBufferFactory;
+
+    BlobSpPool d_blobSpPool;
+
+    bslma::ManagedPtr<bdlma::ConcurrentPool> d_pushElementsPool_mp;
+
+    // TRAITS
+    BSLMF_NESTED_TRAIT_DECLARATION(DispatcherThreadResources,
+                                   bslma::UsesBslmaAllocator)
+
+    // CREATORS
+    explicit DispatcherThreadResources(bslma::Allocator* allocator = 0);
+};
+
 // ================
 // class Dispatcher
 // ================
@@ -350,6 +377,12 @@ class Dispatcher {
     virtual ~Dispatcher();
 
     // MANIPULATORS
+
+    virtual bsl::shared_ptr<DispatcherThreadResources>
+    bookResources(mqbi::DispatcherClient*           client,
+                  mqbi::DispatcherClientType::Enum  type,
+                  mqbi::Dispatcher::ProcessorHandle handle =
+                      mqbi::Dispatcher::k_INVALID_PROCESSOR_HANDLE) = 0;
 
     /// Associate the specified `client` to one of the dispatcher's
     /// processors in charge of clients of the specified `type`.  Use the
@@ -1236,8 +1269,6 @@ bsl::ostream& operator<<(bsl::ostream&               stream,
 /// Interface for a client of the Dispatcher.
 class DispatcherClient {
   public:
-    // CREATORS
-
     /// Destructor.
     virtual ~DispatcherClient();
 

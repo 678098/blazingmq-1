@@ -94,7 +94,10 @@ mqbc::ClusterDataIdentity clusterIdentity(const bslstl::StringRef& name,
 // CREATORS
 ClusterData::ClusterData(
     const bslstl::StringRef&              name,
-    const mqbi::ClusterResources&         resources,
+    bdlbb::BlobBufferFactory*             blobBufferFactory_p,
+    BlobSpPool*                           blobSpPool_p,
+    bdlmt::EventScheduler*                scheduler_p,
+    mqbi::DispatcherClientData*           dispatcherClientData_p,
     const mqbcfg::ClusterDefinition&      clusterConfig,
     const mqbcfg::ClusterProxyDefinition& clusterProxyConfig,
     bslma::ManagedPtr<mqbnet::Cluster>    netCluster,
@@ -104,9 +107,11 @@ ClusterData::ClusterData(
     bmqst::StatContext*                   clustersStatContext,
     const StatContextsMap&                statContexts,
     bslma::Allocator*                     allocator)
-: d_allocator_p(allocator)
-, d_resources(resources)
-, d_dispatcherClientData()
+: d_allocator_p(bslma::Default::allocator(allocator))
+, d_blobBufferFactory_p(blobBufferFactory_p)
+, d_blobSpPool_p(blobSpPool_p)
+, d_scheduler_p(scheduler_p)
+, d_dispatcherClientData_p(dispatcherClientData_p)
 , d_clusterConfig(clusterConfig)
 , d_clusterProxyConfig(clusterProxyConfig)
 , d_electorInfo(cluster)
@@ -117,13 +122,10 @@ ClusterData::ClusterData(
                       cluster->isRemote(),
                       allocator))
 , d_cluster_p(cluster)
-, d_messageTransmitter(resources.blobSpPool(),
-                       cluster,
-                       transportManager,
-                       allocator)
+, d_messageTransmitter(d_blobSpPool_p, cluster, transportManager, allocator)
 , d_requestManager(bmqp::EventType::e_CONTROL,
-                   resources.blobSpPool(),
-                   resources.scheduler(),
+                   d_blobSpPool_p,
+                   d_scheduler_p,
                    false,  // lateResponseMode
                    allocator)
 , d_multiRequestManager(&d_requestManager, allocator)
@@ -143,10 +145,13 @@ ClusterData::ClusterData(
       allocator)
 {
     // PRECONDITIONS
-    BSLS_ASSERT_SAFE(d_allocator_p);
     BSLS_ASSERT_SAFE(d_cluster_p);
     BSLS_ASSERT_SAFE(d_transportManager_p);
-    BSLS_ASSERT(resources.scheduler()->clockType() ==
+    BSLS_ASSERT_SAFE(d_blobBufferFactory_p);
+    BSLS_ASSERT_SAFE(d_blobSpPool_p);
+    BSLS_ASSERT_SAFE(d_scheduler_p);
+    BSLS_ASSERT_SAFE(d_dispatcherClientData_p);
+    BSLS_ASSERT(d_scheduler_p->clockType() ==
                 bsls::SystemClockType::e_MONOTONIC);
 
     // Initialize the clusterStats object - under the hood this creates a new

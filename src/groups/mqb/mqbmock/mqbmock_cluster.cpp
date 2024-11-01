@@ -266,7 +266,10 @@ Cluster::Cluster(bdlbb::BlobBufferFactory* bufferFactory,
 
     d_clusterData_mp.load(new (*d_allocator_p) mqbc::ClusterData(
                               d_clusterDefinition.name(),
-                              d_resources,
+                              bufferFactory,
+                              &d_blobSpPool,
+                              &d_scheduler,
+                              &d_dispatcherClientData,
                               d_clusterDefinition,
                               mqbcfg::ClusterProxyDefinition(d_allocator_p),
                               d_netCluster_mp,

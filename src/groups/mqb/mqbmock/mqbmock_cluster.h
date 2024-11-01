@@ -207,8 +207,8 @@ class Cluster : public mqbi::Cluster {
     // Flag indicating if this cluster is in the
     // process of restoring its state
 
+    /// Dispatcher client data associated to this cluster.
     mqbi::DispatcherClientData d_dispatcherClientData;
-    // Dispatcher client data
 
     EventProcessor d_processor;
 

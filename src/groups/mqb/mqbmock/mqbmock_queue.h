@@ -145,8 +145,8 @@ class Queue : public mqbi::Queue {
     mqbi::Dispatcher* d_dispatcher_p;
     // Dispatcher for this queue
 
+    /// Dispatcher client data associated to this queue.
     mqbi::DispatcherClientData d_dispatcherClientData;
-    // Dispatcher client data of this queue
 
     mqbi::QueueEngine* d_queueEngine_p;
     // Queue Engine for this queue.
