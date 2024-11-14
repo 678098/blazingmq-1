@@ -60,6 +60,7 @@
 #include <bdlbb_blob.h>
 #include <bdlcc_objectpool.h>
 #include <bdlcc_sharedobjectpool.h>
+#include <bdlcc_singleconsumerqueue.h>
 #include <bdlmt_eventscheduler.h>
 #include <bdlmt_fixedthreadpool.h>
 #include <bdlmt_throttle.h>
@@ -170,6 +171,8 @@ class FileStore : public DataStore {
 
     typedef bsl::shared_ptr<FileSet> FileSetSp;
     typedef bsl::vector<FileSetSp>   FileSets;
+
+    typedef bdlcc::SingleConsumerQueue<FileSetSp> FileSetQueue;
 
     typedef StorageCollectionUtil::StorageList StorageList;
 
@@ -336,16 +339,18 @@ class FileStore : public DataStore {
 
     DataStoreRecordKey d_lastRecoveredStrongConsistency;
 
+    /// List of active file sets.  File set at index 0 is the current one.
+    /// Rest are the ones which are still being referenced by message records.
+    /// When rollover occurs, the outstanding messages are moved from the
+    /// active file set to a new rollover file set, which is then inserted to
+    /// the front of the list.
     FileSets d_fileSets;
-    // List of file sets.  File set at
-    // index 0 is the current one.  Rest
-    // are the ones which are still being
-    // referenced by message records.
-    // When rollover occurs, the
-    // outstanding messages are moved from
-    // the active file set to a new
-    // rollover file set, which is then
-    // inserted to the front of the list.
+
+    /// Queue of file sets ready to use after recycling.
+    FileSetQueue d_preparedFileSets;
+
+    /// Queue of file sets ready for recycling.
+    FileSetQueue d_gcFileSets;
 
     mqbnet::Cluster* d_cluster_p;
 
@@ -452,12 +457,12 @@ class FileStore : public DataStore {
     /// *dispatcher* thread.
     void gcDispatched(int partitionId, FileSet* fileSet);
 
-    /// Garbage-collect the specified `fileSet` by closing and archiving all
-    /// files in the `fileSet`.
+    /// Iterate over `d_gcFileSets` and recycle file sets to
+    /// `d_preparedFileSets`.
     ///
     /// THREAD: This method is invoked in a thread from the miscellaneous
     /// *worker* thread pool.
-    void gcWorkerDispatched(const bsl::shared_ptr<FileSet>& fileSet);
+    void gcWorkerDispatched();
 
     /// Open this instance in non-recovery mode.  Return zero on success and
     /// a non-zero value otherwise.  Note that this routine can be used in

@@ -128,6 +128,14 @@ struct FileSystemUtil {
     static int move(const bslstl::StringRef& oldAbsoluteFilename,
                     const bslstl::StringRef& newLocation);
 
+    
+    /// Copy the specified file `oldAbsoluteFilename` to the specified
+    /// `newLocation` directory.  Copy at most the specified `maxSize` bytes.
+    /// Return zero on success, non-zero value otherwise.
+    static int copy(const bslstl::StringRef& oldAbsoluteFilename,
+                    const bslstl::StringRef& newLocation,
+                    size_t                   maxSize = bsl::numeric_limits<size_t>::max());
+
     /// Reserve the specified `length` bytes on disk starting at the
     /// specified `offset` in the file represented by the specified `fd`.
     /// Return zero on success, non-zero value otherwise with the specified

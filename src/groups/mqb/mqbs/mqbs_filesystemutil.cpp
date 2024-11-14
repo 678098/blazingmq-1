@@ -151,6 +151,7 @@
 #include <bdlb_string.h>
 #include <bdls_filesystemutil.h>
 #include <bdls_pathutil.h>
+#include <bsl_fstream.h>
 #include <bsl_ostream.h>
 #include <bsls_assert.h>
 #include <bsls_platform.h>
@@ -544,6 +545,83 @@ int FileSystemUtil::move(const bslstl::StringRef& oldAbsoluteFilename,
     rc = bdls::FilesystemUtil::move(oldAbsoluteFilename, newAbsoluteFileName);
     if (0 != rc) {
         return rc * 10 + rc_MOVE_FAILURE;  // RETURN
+    }
+
+    return rc_SUCCESS;
+}
+
+int FileSystemUtil::copy(const bslstl::StringRef& oldAbsoluteFilename,
+                         const bslstl::StringRef& newLocation,
+                         size_t                   maxSize)
+{
+    enum {
+        rc_SUCCESS            = 0,
+        rc_EMPTY_NEW_LOCATION = -1,
+        rc_NO_LEAF            = -2,
+        rc_APPEND_FAILURE     = -3,
+        rc_OPEN_SRC_FAILURE   = -4,
+        rc_OPEN_DST_FAILURE   = -5,
+        rc_READ_SRC_FAILURE   = -6,
+        rc_WRITE_DST_FAILURE  = -7
+    };
+
+    if (newLocation.isEmpty()) {
+        return rc_EMPTY_NEW_LOCATION;  // RETURN
+    }
+
+    bsl::string oldFileLeafName;  // not containing path
+    int rc = bdls::PathUtil::getLeaf(&oldFileLeafName, oldAbsoluteFilename);
+    if (0 != rc) {
+        return rc * 10 + rc_NO_LEAF;  // RETURN
+    }
+
+    bsl::string newAbsoluteFileName(newLocation);
+    rc = bdls::PathUtil::appendIfValid(&newAbsoluteFileName, oldFileLeafName);
+    if (0 != rc) {
+        return rc * 10 + rc_APPEND_FAILURE;  // RETURN
+    }
+
+    bsl::ifstream ifs(oldAbsoluteFilename);
+    // `ifs` closed on destruction when exiting the scope
+    if (!ifs.is_open()) {
+        return rc_OPEN_SRC_FAILURE;  // RETURN
+    }
+
+    bsl::ofstream ofs(newAbsoluteFileName);
+    // `ofs` closed on destruction when exiting the scope
+    if (!ofs.is_open()) {
+        return rc_OPEN_DST_FAILURE;  // RETURN
+    }
+
+    static const size_t k_BUFF_SIZE = 4096;
+    char buff[k_BUFF_SIZE];
+
+    maxSize = bsl::min(maxSize, static_cast<size_t>(ifs.tellg()));
+
+    bsl::streambuf* ibuf = ifs.rdbuf();
+    bsl::streambuf* obuf = ofs.rdbuf();
+
+    size_t pos = 0;
+    for (; pos + k_BUFF_SIZE < maxSize; pos += k_BUFF_SIZE) {
+        const bsl::streamsize num = ibuf->sgetn(buff, k_BUFF_SIZE);
+        if (k_BUFF_SIZE != num) {
+            return rc_READ_SRC_FAILURE;  // RETURN
+        }
+        if (obuf->sputn(buff, num) != num) {
+            return rc_WRITE_DST_FAILURE;  // RETURN
+        }
+    }
+    if (pos < maxSize) {
+        const size_t remainder = maxSize - pos;
+        BSLS_ASSERT_SAFE(remainder < k_BUFF_SIZE);
+        
+        const bsl::streamsize num = ibuf->sgetn(buff, remainder);
+        if (remainder != num) {
+            return rc_READ_SRC_FAILURE;  // RETURN
+        }
+        if (obuf->sputn(buff, num) != num) {
+            return rc_WRITE_DST_FAILURE;  // RETURN
+        }
     }
 
     return rc_SUCCESS;

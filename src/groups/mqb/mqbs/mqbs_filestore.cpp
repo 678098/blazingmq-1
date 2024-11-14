@@ -2529,10 +2529,19 @@ int FileStore::rollover(bsls::Types::Uint64 timestamp)
 
     // Create new files, add header etc.
     FileSetSp newActiveFileSetSp;
-    int       rc = create(&newActiveFileSetSp);
-    if (0 != rc) {
-        // 'create' will log error
-        return rc;  // RETURN
+    if (!d_preparedFileSets.isEmpty()) {
+        const int rc = d_preparedFileSets.popFront(&newActiveFileSetSp);
+        if (0 != rc) {
+            BALL_LOG_ERROR << "Failed to get a recycled file set, rc: " << rc;
+            return rc;  // RETURN
+        }
+    }
+    else {
+        const int rc = create(&newActiveFileSetSp);
+        if (0 != rc) {
+            // 'create' will log error
+            return rc;  // RETURN
+        }
     }
 
     // Iterate over outstanding records in the active set, and copy them to the
@@ -2736,7 +2745,7 @@ int FileStore::rollover(bsls::Types::Uint64 timestamp)
     // Irrespective of the aliased blob buffer counter, file set can be
     // truncated because nothing else will be written to the file.
 
-    truncate(activeFileSet);
+    // truncate(activeFileSet);
     BALL_LOG_INFO_BLOCK
     {
         statRecorder.print(BALL_LOG_OUTPUT_STREAM,
@@ -2761,15 +2770,15 @@ int FileStore::rollover(bsls::Types::Uint64 timestamp)
         // is the first element.
         BSLS_ASSERT_SAFE(d_fileSets.begin()->get() == activeFileSet);
 
-        // Make a copy of the target fileSetSp before erasing it from
-        // 'd_fileSets'.
-        bsl::shared_ptr<FileSet> activeFileSetSp(*d_fileSets.begin());
-        d_fileSets.erase(d_fileSets.begin());
+        {
+            // Make a copy of a file set shared pointer and send it to gc.
+            FileSetSp activeFileSetSp(*d_fileSets.begin());
+            d_fileSets.erase(d_fileSets.begin());
+            d_gcFileSets.pushBack(activeFileSetSp);
+        }
 
-        rc = d_miscWorkThreadPool_p->enqueueJob(
-            bdlf::BindUtil::bind(&FileStore::gcWorkerDispatched,
-                                 this,
-                                 activeFileSetSp));
+        int rc = d_miscWorkThreadPool_p->enqueueJob(
+            bdlf::BindUtil::bind(&FileStore::gcWorkerDispatched, this));
         BSLS_ASSERT_SAFE(rc == 0);
     }
     else {
@@ -3195,32 +3204,35 @@ void FileStore::close(FileSet& fileSetRef, bool flush)
 
 void FileStore::archive(FileSet* fileSet)
 {
-    int rc = FileSystemUtil::move(fileSet->d_dataFileName,
-                                  d_config.archiveLocation());
+    int rc = FileSystemUtil::copy(fileSet->d_dataFileName,
+                                  d_config.archiveLocation(),
+                                  fileSet->d_dataFilePosition);
     if (0 != rc) {
         BMQTSK_ALARMLOG_ALARM("FILE_IO")
-            << partitionDesc() << "Failed to move file ["
+            << partitionDesc() << "Failed to copy file ["
             << fileSet->d_dataFileName << "] " << "to location ["
             << d_config.archiveLocation() << "] rc: " << rc
             << BMQTSK_ALARMLOG_END;
     }
 
-    rc = FileSystemUtil::move(fileSet->d_journalFileName,
-                              d_config.archiveLocation());
+    rc = FileSystemUtil::copy(fileSet->d_journalFileName,
+                              d_config.archiveLocation(),
+                              fileSet->d_journalFilePosition);
     if (0 != rc) {
         BMQTSK_ALARMLOG_ALARM("FILE_IO")
-            << partitionDesc() << "Failed to move file ["
+            << partitionDesc() << "Failed to copy file ["
             << fileSet->d_journalFileName << "] " << "to location ["
             << d_config.archiveLocation() << "] rc: " << rc
             << BMQTSK_ALARMLOG_END;
     }
 
     if (!d_isFSMWorkflow) {
-        rc = FileSystemUtil::move(fileSet->d_qlistFileName,
-                                  d_config.archiveLocation());
+        rc = FileSystemUtil::copy(fileSet->d_qlistFileName,
+                                  d_config.archiveLocation(),
+                                  fileSet->d_qlistFilePosition);
         if (0 != rc) {
             BMQTSK_ALARMLOG_ALARM("FILE_IO")
-                << partitionDesc() << "Failed to move file ["
+                << partitionDesc() << "Failed to copy file ["
                 << fileSet->d_qlistFileName << "] " << "to location ["
                 << d_config.archiveLocation() << "] rc: " << rc
                 << BMQTSK_ALARMLOG_END;
@@ -3300,38 +3312,32 @@ void FileStore::gcDispatched(int partitionId, FileSet* fileSet)
     // file set.
     d_fileSets.erase(it);
 
+    d_gcFileSets.pushBack(fileSetSp);
+    fileSetSp.clear();
+
     BSLA_MAYBE_UNUSED const int rc = d_miscWorkThreadPool_p->enqueueJob(
-        bdlf::BindUtil::bind(&FileStore::gcWorkerDispatched, this, fileSetSp));
+        bdlf::BindUtil::bind(&FileStore::gcWorkerDispatched, this));
     BSLS_ASSERT_SAFE(rc == 0);
 }
 
-void FileStore::gcWorkerDispatched(const bsl::shared_ptr<FileSet>& fileSet)
+void FileStore::gcWorkerDispatched()
 {
     // executed by a *WORKER* thread
 
-    // PRECONDITIONS
-    BSLS_ASSERT_SAFE(fileSet);
+    FileSetSp fileSet;
+    const int rc = d_gcFileSets.popFront(&fileSet);
+    BSLS_ASSERT_SAFE(0 == rc);
 
-    // Files have already been truncated.  Can safely close and archive.
     BALL_LOG_INFO_BLOCK
     {
         BALL_LOG_OUTPUT_STREAM
-            << partitionDesc() << "Closing and archiving file set ["
+            << partitionDesc() << "Archiving and recycling file set ["
             << fileSet->d_dataFileName << "], [" << fileSet->d_journalFileName
             << "]";
         if (!d_isFSMWorkflow) {
             BALL_LOG_OUTPUT_STREAM << ", [" << fileSet->d_qlistFileName << "]";
         }
-        BALL_LOG_OUTPUT_STREAM << " as it can be gc'd.";
     }
-
-    bsls::Types::Int64 startTime = bmqsys::Time::highResolutionTimer();
-
-    close(*fileSet, false);
-    bsls::Types::Int64 closeTime = bmqsys::Time::highResolutionTimer();
-    BALL_LOG_INFO << partitionDesc() << "File set closed. Time taken: "
-                  << bmqu::PrintUtil::prettyTimeInterval(closeTime -
-                                                         startTime);
 
     bsls::Types::Int64 archiveStartTime = bmqsys::Time::highResolutionTimer();
     archive(fileSet.get());
@@ -3339,6 +3345,37 @@ void FileStore::gcWorkerDispatched(const bsl::shared_ptr<FileSet>& fileSet)
     BALL_LOG_INFO << partitionDesc() << "File set archived. Time taken: "
                   << bmqu::PrintUtil::prettyTimeInterval(archiveEndTime -
                                                          archiveStartTime);
+
+    fileSet->d_dataFilePosition        = 0;
+    fileSet->d_journalFilePosition     = 0;
+    fileSet->d_qlistFilePosition       = 0;
+    fileSet->d_outstandingBytesData    = 0;
+    fileSet->d_outstandingBytesJournal = 0;
+    fileSet->d_outstandingBytesQlist   = 0;
+
+    // truncate(fileSet.get());
+
+    // fileSet->d_dataFile.setFileSize(d_config.maxDataFileSize());
+    // fileSet->d_journalFile.setFileSize(d_config.maxJournalFileSize());
+    // if (!d_isFSMWorkflow){
+    //     fileSet->d_qlistFile.setFileSize(d_config.maxQlistFileSize());
+    // }
+
+    d_preparedFileSets.pushBack(fileSet);
+
+    // TODO add archive copy
+    // TODO memset 0
+
+    // Files have already been truncated.  Can safely close and archive.
+
+
+    bsls::Types::Int64 startTime = bmqsys::Time::highResolutionTimer();
+
+    // close(*fileSet, false);
+    bsls::Types::Int64 closeTime = bmqsys::Time::highResolutionTimer();
+    BALL_LOG_INFO << partitionDesc() << "File set closed. Time taken: "
+                  << bmqu::PrintUtil::prettyTimeInterval(closeTime -
+                                                         startTime);
 }
 
 int FileStore::writeQueueOpRecord(DataStoreRecordHandle*  handle,
@@ -5155,6 +5192,8 @@ FileStore::FileStore(const DataStoreConfig&  config,
 , d_nodes(allocator)
 , d_lastRecoveredStrongConsistency()
 , d_fileSets(allocator)
+, d_preparedFileSets(allocator)
+, d_gcFileSets(allocator)
 , d_cluster_p(cluster)
 , d_miscWorkThreadPool_p(miscWorkThreadPool)
 , d_syncPointEventHandle()
